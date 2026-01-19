@@ -1,5 +1,7 @@
 # GitHub Code Collaboration Platform
 
+English | [简体中文](README_CN.md)
+
 A smart GitHub code development collaboration platform powered by AI, designed to streamline code development, analysis, and PR management.
 
 ## Features
