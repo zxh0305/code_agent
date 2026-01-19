@@ -1,6 +1,20 @@
 version: '3.8'
 
 services:
+  # Frontend Web Application
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: code_agent_frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - api
+    restart: unless-stopped
+    networks:
+      - code_agent_network
+
   # Main API Service
   api:
     build:

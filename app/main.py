@@ -10,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.core.database import init_db, close_db
 from app.core.redis import redis_client
-from app.api import github_routes, code_routes, pr_routes, llm_routes
+from app.api import github_routes, code_routes, pr_routes, llm_routes, settings_routes
 
 
 @asynccontextmanager
@@ -50,6 +50,7 @@ app.include_router(github_routes.router, prefix=settings.API_PREFIX)
 app.include_router(code_routes.router, prefix=settings.API_PREFIX)
 app.include_router(pr_routes.router, prefix=settings.API_PREFIX)
 app.include_router(llm_routes.router, prefix=settings.API_PREFIX)
+app.include_router(settings_routes.router, prefix=settings.API_PREFIX)
 
 
 @app.get("/")

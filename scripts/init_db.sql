@@ -161,6 +161,40 @@ CREATE INDEX IF NOT EXISTS idx_pull_requests_github_id ON pull_requests(github_i
 CREATE INDEX IF NOT EXISTS idx_code_analyses_repository_id ON code_analyses(repository_id);
 CREATE INDEX IF NOT EXISTS idx_ai_interactions_user_id ON ai_interactions(user_id);
 
+-- Create system_settings table
+CREATE TABLE IF NOT EXISTS system_settings (
+    id SERIAL PRIMARY KEY,
+    key VARCHAR(255) UNIQUE NOT NULL,
+    value TEXT,
+    value_type VARCHAR(50) DEFAULT 'string',
+    description TEXT,
+    is_sensitive BOOLEAN DEFAULT FALSE,
+    category VARCHAR(100),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_system_settings_key ON system_settings(key);
+CREATE INDEX IF NOT EXISTS idx_system_settings_category ON system_settings(category);
+
+-- Insert default settings
+INSERT INTO system_settings (key, value, value_type, description, is_sensitive, category) VALUES
+    ('github_client_id', '', 'string', 'GitHub OAuth App Client ID', FALSE, 'github'),
+    ('github_client_secret', '', 'string', 'GitHub OAuth App Client Secret', TRUE, 'github'),
+    ('github_redirect_uri', 'http://localhost:8080/api/v1/github/callback', 'string', 'GitHub OAuth回调URL', FALSE, 'github'),
+    ('github_scopes', 'repo,user', 'string', 'GitHub授权范围', FALSE, 'github'),
+    ('openai_api_key', '', 'string', 'OpenAI API密钥', TRUE, 'openai'),
+    ('openai_model', 'gpt-4o', 'string', 'OpenAI模型名称', FALSE, 'openai'),
+    ('openai_max_tokens', '4096', 'int', 'OpenAI最大Token数', FALSE, 'openai'),
+    ('openai_temperature', '0.7', 'float', 'OpenAI Temperature参数', FALSE, 'openai'),
+    ('local_llm_enabled', 'false', 'bool', '是否启用本地LLM', FALSE, 'local_llm'),
+    ('local_llm_url', '', 'string', '本地LLM服务地址', FALSE, 'local_llm'),
+    ('local_llm_model', '', 'string', '本地LLM模型名称', FALSE, 'local_llm'),
+    ('jwt_secret_key', 'change-this-in-production', 'string', 'JWT签名密钥', TRUE, 'jwt'),
+    ('jwt_algorithm', 'HS256', 'string', 'JWT加密算法', FALSE, 'jwt'),
+    ('jwt_expire_minutes', '1440', 'int', 'JWT过期时间（分钟）', FALSE, 'jwt')
+ON CONFLICT (key) DO NOTHING;
+
 -- Create updated_at trigger function
 CREATE OR REPLACE FUNCTION update_updated_at_column()
 RETURNS TRIGGER AS $$
