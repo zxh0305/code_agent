@@ -13,7 +13,7 @@ from app.core.database import init_db, close_db
 from app.core.redis import redis_client
 from app.core.logging import get_logger, configure_logging
 from app.core.middleware import setup_middlewares
-from app.api import github_routes, code_routes, pr_routes, llm_routes, settings_routes
+from app.api import github_routes, code_routes, pr_routes, llm_routes, settings_routes, task_routes
 
 # Initialize logging
 configure_logging()
@@ -137,6 +137,11 @@ app.include_router(
     settings_routes.router,
     prefix=settings.API_PREFIX,
     tags=["Settings"]
+)
+app.include_router(
+    task_routes.router,
+    prefix=settings.API_PREFIX,
+    tags=["Tasks"]
 )
 
 

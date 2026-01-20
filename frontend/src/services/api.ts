@@ -21,7 +21,7 @@ async function request<T>(url: string, options?: RequestInit): Promise<T> {
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({ message: 'Request failed' }))
-    throw new Error(error.message || `HTTP error! status: ${response.status}`)
+    throw new Error(error.message || error.detail || `HTTP error! status: ${response.status}`)
   }
 
   return response.json()
@@ -33,11 +33,16 @@ export const githubApi = {
   getAuthUrl: () => request<{ auth_url: string }>('/github/auth'),
 
   // Get user repositories
-  getRepos: () => request<Repository[]>('/github/repos'),
+  getRepos: (accessToken?: string) => {
+    const params = accessToken ? `?access_token=${accessToken}` : ''
+    return request<{ repositories: Repository[] }>(`/github/repos${params}`)
+  },
 
   // Get repository branches
-  getBranches: (owner: string, repo: string) =>
-    request<Branch[]>(`/github/repos/${owner}/${repo}/branches`),
+  getBranches: (owner: string, repo: string, accessToken?: string) => {
+    const params = accessToken ? `?access_token=${accessToken}` : ''
+    return request<{ branches: Branch[] }>(`/github/repos/${owner}/${repo}/branches${params}`)
+  },
 
   // Clone repository
   cloneRepo: (data: { owner: string; repo: string; branch?: string }) =>
@@ -45,6 +50,55 @@ export const githubApi = {
       method: 'POST',
       body: JSON.stringify(data),
     }),
+}
+
+// Task API
+export const taskApi = {
+  // Create task
+  create: (data: TaskCreate) =>
+    request<Task>('/tasks', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  // List tasks
+  list: (params?: { page?: number; per_page?: number; status?: string; is_archived?: boolean }) => {
+    const searchParams = new URLSearchParams()
+    if (params?.page) searchParams.set('page', String(params.page))
+    if (params?.per_page) searchParams.set('per_page', String(params.per_page))
+    if (params?.status) searchParams.set('status', params.status)
+    if (params?.is_archived !== undefined) searchParams.set('is_archived', String(params.is_archived))
+    const query = searchParams.toString()
+    return request<Task[]>(`/tasks${query ? `?${query}` : ''}`)
+  },
+
+  // Get task
+  get: (taskId: number) => request<Task>(`/tasks/${taskId}`),
+
+  // Update task
+  update: (taskId: number, data: TaskUpdate) =>
+    request<Task>(`/tasks/${taskId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+
+  // Rename task
+  rename: (taskId: number, name: string) =>
+    request<{ status: string; name: string }>(`/tasks/${taskId}/rename?name=${encodeURIComponent(name)}`, {
+      method: 'PATCH',
+    }),
+
+  // Archive task
+  archive: (taskId: number) =>
+    request<{ status: string }>(`/tasks/${taskId}/archive`, { method: 'PATCH' }),
+
+  // Unarchive task
+  unarchive: (taskId: number) =>
+    request<{ status: string }>(`/tasks/${taskId}/unarchive`, { method: 'PATCH' }),
+
+  // Delete task
+  delete: (taskId: number) =>
+    request<{ status: string }>(`/tasks/${taskId}`, { method: 'DELETE' }),
 }
 
 // Code Analysis API
@@ -117,6 +171,44 @@ export const prApi = {
 }
 
 // Types
+export interface Task {
+  id: number
+  name: string
+  description: string | null
+  repository: string | null
+  branch: string | null
+  requirement: string | null
+  generated_code: string | null
+  language: string | null
+  status: string
+  is_archived: boolean
+  metadata: Record<string, any> | null
+  created_at: string | null
+  updated_at: string | null
+}
+
+export interface TaskCreate {
+  name?: string
+  description?: string
+  repository?: string
+  branch?: string
+  requirement?: string
+  language?: string
+}
+
+export interface TaskUpdate {
+  name?: string
+  description?: string
+  repository?: string
+  branch?: string
+  requirement?: string
+  generated_code?: string
+  language?: string
+  status?: string
+  is_archived?: boolean
+  metadata?: Record<string, any>
+}
+
 export interface Repository {
   id: number
   name: string
@@ -125,9 +217,9 @@ export interface Repository {
   html_url: string
   clone_url: string
   default_branch: string
-  is_private: boolean
+  private: boolean
   language: string | null
-  stars_count: number
+  stargazers_count: number
   forks_count: number
 }
 
