@@ -93,9 +93,39 @@ pip install -e ".[dev]"  # 安装开发依赖
 docker-compose up -d db redis
 ```
 
-4. 运行应用：
+4. 运行数据库迁移：
+```bash
+# 应用所有数据库迁移
+./scripts/migrate.sh upgrade
+
+# 或使用alembic命令
+alembic upgrade head
+```
+
+5. 运行应用：
 ```bash
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8080
+```
+
+## 数据库迁移
+
+本项目使用Alembic进行数据库迁移管理。提供了便捷的迁移脚本：
+
+```bash
+# 应用所有迁移
+./scripts/migrate.sh upgrade
+
+# 回滚最近一次迁移
+./scripts/migrate.sh downgrade -1
+
+# 查看当前数据库版本
+./scripts/migrate.sh current
+
+# 查看迁移历史
+./scripts/migrate.sh history
+
+# 创建新迁移（基于模型变更自动生成）
+./scripts/migrate.sh new "描述迁移内容"
 ```
 
 ## API接口
