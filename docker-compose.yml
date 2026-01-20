@@ -8,7 +8,7 @@ services:
       dockerfile: Dockerfile
     container_name: code_agent_frontend
     ports:
-      - "3000:80"
+      - "3002:80"
     depends_on:
       - api
     restart: unless-stopped
@@ -22,7 +22,7 @@ services:
       dockerfile: Dockerfile
     container_name: code_agent_api
     ports:
-      - "8080:8080"
+      - "8082:8082"
     environment:
       - DATABASE_URL=postgresql+asyncpg://postgres:postgres@db:5432/code_agent
       - REDIS_URL=redis://redis:6379/0

@@ -71,8 +71,9 @@ docker-compose up -d
 ```
 
 4. 访问API文档：
-- Swagger UI: http://localhost:8080/docs
-- ReDoc: http://localhost:8080/redoc
+- Swagger UI: http://localhost:8082/docs
+- ReDoc: http://localhost:8082/redoc
+- 前端界面: http://localhost:3002
 
 ### 本地开发
 
@@ -104,7 +105,7 @@ alembic upgrade head
 
 5. 运行应用：
 ```bash
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8080
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8082
 ```
 
 ## 数据库迁移

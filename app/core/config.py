@@ -20,7 +20,7 @@ class Settings(BaseSettings):
 
     # Server Settings
     HOST: str = "0.0.0.0"
-    PORT: int = 8080
+    PORT: int = 8082
     WORKERS: int = 4
 
     # Database Settings
@@ -35,7 +35,7 @@ class Settings(BaseSettings):
     # GitHub OAuth Settings
     GITHUB_CLIENT_ID: str = ""
     GITHUB_CLIENT_secret: str = ""
-    GITHUB_REDIRECT_URI: str = "http://localhost:8080/api/v1/github/callback"
+    GITHUB_REDIRECT_URI: str = "http://localhost:8082/api/v1/github/callback"
     GITHUB_SCOPES: str = "repo,user"
 
     # JWT Settings
@@ -58,7 +58,7 @@ class Settings(BaseSettings):
     MAX_REPO_SIZE_MB: int = 500
 
     # Security Settings
-    CORS_ORIGINS: List[str] = ["http://localhost:3000", "http://localhost:8080"]
+    CORS_ORIGINS: List[str] = ["http://localhost:3002", "http://localhost:8082"]
     RATE_LIMIT_REQUESTS: int = 100
     RATE_LIMIT_PERIOD: int = 60
 
