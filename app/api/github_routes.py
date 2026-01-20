@@ -198,6 +198,20 @@ async def get_repository(
         raise HTTPException(status_code=400, detail=str(e))
 
 
+@router.get("/repos/{owner}/{repo}/branches")
+async def list_branches(
+    owner: str,
+    repo: str,
+    access_token: str = Query(...)
+):
+    """List branches of a repository."""
+    try:
+        branches = await github_service.list_branches(access_token, owner, repo)
+        return {"status": "success", "branches": branches}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
 @router.post("/repos/clone")
 async def clone_repository(
     request: CloneRequest,

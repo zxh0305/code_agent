@@ -213,6 +213,39 @@ class GitHubService:
             "updated_at": repo.updated_at.isoformat() if repo.updated_at else None
         }
 
+    async def list_branches(
+        self,
+        access_token: str,
+        owner: str,
+        repo_name: str
+    ) -> List[Dict[str, Any]]:
+        """
+        List branches of a repository.
+
+        Args:
+            access_token: GitHub access token
+            owner: Repository owner
+            repo_name: Repository name
+
+        Returns:
+            List of branch information
+        """
+        g = Github(access_token)
+        repo = g.get_repo(f"{owner}/{repo_name}")
+
+        branches = []
+        for branch in repo.get_branches():
+            branches.append({
+                "name": branch.name,
+                "commit": {
+                    "sha": branch.commit.sha,
+                    "url": branch.commit.html_url
+                },
+                "protected": branch.protected
+            })
+
+        return branches
+
     def clone_repository(
         self,
         clone_url: str,

@@ -7,6 +7,7 @@ import {
   CodeOutlined,
   PullRequestOutlined,
   RobotOutlined,
+  EditOutlined,
 } from '@ant-design/icons'
 
 const { Sider } = Layout
@@ -18,9 +19,9 @@ const menuItems = [
     label: <Link to="/">首页</Link>,
   },
   {
-    key: '/settings',
-    icon: <SettingOutlined />,
-    label: <Link to="/settings">系统设置</Link>,
+    key: '/develop',
+    icon: <EditOutlined />,
+    label: <Link to="/develop">代码开发</Link>,
   },
   {
     type: 'divider' as const,
@@ -80,6 +81,14 @@ const menuItems = [
         label: <Link to="/ai/review">代码审核</Link>,
       },
     ],
+  },
+  {
+    type: 'divider' as const,
+  },
+  {
+    key: '/settings',
+    icon: <SettingOutlined />,
+    label: <Link to="/settings">系统设置</Link>,
   },
 ]
 
