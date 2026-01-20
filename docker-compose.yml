@@ -1,0 +1,114 @@
+version: '3.8'
+
+services:
+  # Frontend Web Application
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: code_agent_frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - api
+    restart: unless-stopped
+    networks:
+      - code_agent_network
+
+  # Main API Service
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: code_agent_api
+    ports:
+      - "8080:8080"
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://postgres:postgres@db:5432/code_agent
+      - REDIS_URL=redis://redis:6379/0
+    env_file:
+      - .env
+    volumes:
+      - ./:/app
+      - code_storage:/tmp/code_agent
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - code_agent_network
+
+  # PostgreSQL Database
+  db:
+    image: postgres:15-alpine
+    container_name: code_agent_db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: code_agent
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init_db.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - code_agent_network
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: code_agent_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - code_agent_network
+
+  # Local LLM Service (Optional - CodeLlama)
+  # Uncomment to use local LLM
+  # llm:
+  #   image: ghcr.io/ggerganov/llama.cpp:server
+  #   container_name: code_agent_llm
+  #   ports:
+  #     - "8000:8000"
+  #   volumes:
+  #     - ./models:/models
+  #   command: >
+  #     -m /models/codellama-7b.gguf
+  #     --host 0.0.0.0
+  #     --port 8000
+  #     -c 4096
+  #   deploy:
+  #     resources:
+  #       reservations:
+  #         devices:
+  #           - driver: nvidia
+  #             count: 1
+  #             capabilities: [gpu]
+  #   restart: unless-stopped
+  #   networks:
+  #     - code_agent_network
+
+volumes:
+  postgres_data:
+  redis_data:
+  code_storage:
+
+networks:
+  code_agent_network:
+    driver: bridge
