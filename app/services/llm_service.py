@@ -158,33 +158,75 @@ Explain what and why in the body if needed."""
 
 
 class LLMService:
-    """Service for LLM interactions."""
+    """Service for LLM interactions with multiple providers."""
 
     def __init__(self):
-        self.api_key = settings.OPENAI_API_KEY
-        self.model = settings.OPENAI_MODEL
+        self.providers = {
+            "openai": {
+                "api_key": settings.OPENAI_API_KEY,
+                "base_url": None,
+                "model": settings.OPENAI_MODEL
+            },
+            "siliconflow": {
+                "api_key": getattr(settings, "SILICONFLOW_API_KEY", ""),
+                "base_url": getattr(settings, "SILICONFLOW_BASE_URL", "https://api.siliconflow.cn/v1"),
+                "model": getattr(settings, "SILICONFLOW_MODEL", "deepseek-ai/DeepSeek-V3")
+            },
+            "qwen": {
+                "api_key": getattr(settings, "QWEN_API_KEY", ""),
+                "base_url": getattr(settings, "QWEN_BASE_URL", "https://dashscope.aliyuncs.com/compatible-mode/v1"),
+                "model": getattr(settings, "QWEN_MODEL", "qwen-plus")
+            },
+            "zhipu": {
+                "api_key": getattr(settings, "ZHIPU_API_KEY", ""),
+                "base_url": getattr(settings, "ZHIPU_BASE_URL", "https://open.bigmodel.cn/api/paas/v4"),
+                "model": getattr(settings, "ZHIPU_MODEL", "glm-4")
+            },
+            "local": {
+                "api_key": None,
+                "base_url": settings.LOCAL_LLM_URL,
+                "model": settings.LOCAL_LLM_MODEL
+            }
+        }
+        self.default_provider = getattr(settings, "DEFAULT_LLM_PROVIDER", "openai")
         self.max_tokens = settings.OPENAI_MAX_TOKENS
         self.temperature = settings.OPENAI_TEMPERATURE
-        self.local_llm_url = settings.LOCAL_LLM_URL
-        self.local_llm_model = settings.LOCAL_LLM_MODEL
 
-    def _get_client(self, use_local: bool = False) -> OpenAI:
-        """Get OpenAI client (local or cloud)."""
-        if use_local and self.local_llm_url:
+    def _get_client(self, provider: Optional[str] = None) -> OpenAI:
+        """Get OpenAI client for specified provider."""
+        provider = provider or self.default_provider
+        config = self.providers.get(provider, self.providers["openai"])
+
+        if provider == "local":
             return OpenAI(
-                base_url=self.local_llm_url,
-                api_key="not-needed"  # Local models typically don't need API key
-            )
-        return OpenAI(api_key=self.api_key)
-
-    def _get_async_client(self, use_local: bool = False) -> AsyncOpenAI:
-        """Get async OpenAI client."""
-        if use_local and self.local_llm_url:
-            return AsyncOpenAI(
-                base_url=self.local_llm_url,
+                base_url=config["base_url"],
                 api_key="not-needed"
             )
-        return AsyncOpenAI(api_key=self.api_key)
+        return OpenAI(
+            api_key=config["api_key"],
+            base_url=config["base_url"]
+        )
+
+    def _get_async_client(self, provider: Optional[str] = None) -> AsyncOpenAI:
+        """Get async OpenAI client for specified provider."""
+        provider = provider or self.default_provider
+        config = self.providers.get(provider, self.providers["openai"])
+
+        if provider == "local":
+            return AsyncOpenAI(
+                base_url=config["base_url"],
+                api_key="not-needed"
+            )
+        return AsyncOpenAI(
+            api_key=config["api_key"],
+            base_url=config["base_url"]
+        )
+
+    def _get_model(self, provider: Optional[str] = None) -> str:
+        """Get model name for specified provider."""
+        provider = provider or self.default_provider
+        config = self.providers.get(provider, self.providers["openai"])
+        return config["model"]
 
     def _parse_response(self, response: ChatCompletion) -> LLMResponse:
         """Parse OpenAI response into LLMResponse."""
@@ -202,7 +244,7 @@ class LLMService:
         requirements: str,
         language: str = "python",
         context: Optional[str] = None,
-        use_local: bool = False
+        provider: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         Generate code based on requirements.
@@ -211,7 +253,7 @@ class LLMService:
             requirements: Code requirements description
             language: Programming language
             context: Existing code context
-            use_local: Use local LLM if available
+            provider: LLM provider to use (openai, siliconflow, qwen, zhipu, local)
 
         Returns:
             Generated code and metadata
@@ -223,8 +265,8 @@ class LLMService:
                 language=language
             )
 
-            client = self._get_client(use_local)
-            model = self.local_llm_model if use_local else self.model
+            client = self._get_client(provider)
+            model = self._get_model(provider)
 
             response = client.chat.completions.create(
                 model=model,
@@ -261,7 +303,7 @@ class LLMService:
         requirements: str,
         language: str = "python",
         context: Optional[str] = None,
-        use_local: bool = False
+        provider: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         Modify existing code based on requirements.
@@ -271,7 +313,7 @@ class LLMService:
             requirements: Modification requirements
             language: Programming language
             context: Additional context
-            use_local: Use local LLM
+            provider: LLM provider to use
 
         Returns:
             Modified code and metadata
@@ -284,8 +326,8 @@ class LLMService:
                 context=context or "No additional context"
             )
 
-            client = self._get_client(use_local)
-            model = self.local_llm_model if use_local else self.model
+            client = self._get_client(provider)
+            model = self._get_model(provider)
 
             response = client.chat.completions.create(
                 model=model,
@@ -326,7 +368,7 @@ class LLMService:
         self,
         code: str,
         language: str = "python",
-        use_local: bool = False
+        provider: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         Review code and provide feedback.
@@ -334,7 +376,7 @@ class LLMService:
         Args:
             code: Code to review
             language: Programming language
-            use_local: Use local LLM
+            provider: LLM provider to use
 
         Returns:
             Code review results
@@ -345,8 +387,8 @@ class LLMService:
                 language=language
             )
 
-            client = self._get_client(use_local)
-            model = self.local_llm_model if use_local else self.model
+            client = self._get_client(provider)
+            model = self._get_model(provider)
 
             response = client.chat.completions.create(
                 model=model,
@@ -383,7 +425,7 @@ class LLMService:
         error_description: str,
         language: str = "python",
         stack_trace: Optional[str] = None,
-        use_local: bool = False
+        provider: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         Fix bugs in code.
@@ -393,7 +435,7 @@ class LLMService:
             error_description: Description of the error
             language: Programming language
             stack_trace: Stack trace if available
-            use_local: Use local LLM
+            provider: LLM provider to use
 
         Returns:
             Fixed code and explanation
@@ -406,8 +448,8 @@ class LLMService:
                 stack_trace=stack_trace or "Not provided"
             )
 
-            client = self._get_client(use_local)
-            model = self.local_llm_model if use_local else self.model
+            client = self._get_client(provider)
+            model = self._get_model(provider)
 
             response = client.chat.completions.create(
                 model=model,
@@ -442,7 +484,7 @@ class LLMService:
         self,
         code: str,
         language: str = "python",
-        use_local: bool = False
+        provider: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         Generate documentation for code.
@@ -450,7 +492,7 @@ class LLMService:
         Args:
             code: Code to document
             language: Programming language
-            use_local: Use local LLM
+            provider: LLM provider to use
 
         Returns:
             Generated documentation
@@ -461,8 +503,8 @@ class LLMService:
                 language=language
             )
 
-            client = self._get_client(use_local)
-            model = self.local_llm_model if use_local else self.model
+            client = self._get_client(provider)
+            model = self._get_model(provider)
 
             response = client.chat.completions.create(
                 model=model,
@@ -497,7 +539,7 @@ class LLMService:
         self,
         changed_files: List[str],
         commit_messages: List[str],
-        use_local: bool = False
+        provider: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         Generate PR description.
@@ -505,7 +547,7 @@ class LLMService:
         Args:
             changed_files: List of changed file paths
             commit_messages: List of commit messages
-            use_local: Use local LLM
+            provider: LLM provider to use
 
         Returns:
             Generated PR description
@@ -516,8 +558,8 @@ class LLMService:
                 commit_messages="\n".join(f"- {m}" for m in commit_messages)
             )
 
-            client = self._get_client(use_local)
-            model = self.local_llm_model if use_local else self.model
+            client = self._get_client(provider)
+            model = self._get_model(provider)
 
             response = client.chat.completions.create(
                 model=model,
@@ -552,7 +594,7 @@ class LLMService:
         self,
         changed_files: List[str],
         diff_summary: str,
-        use_local: bool = False
+        provider: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         Generate commit message.
@@ -560,7 +602,7 @@ class LLMService:
         Args:
             changed_files: List of changed file paths
             diff_summary: Summary of changes
-            use_local: Use local LLM
+            provider: LLM provider to use
 
         Returns:
             Generated commit message
@@ -571,8 +613,8 @@ class LLMService:
                 diff_summary=diff_summary
             )
 
-            client = self._get_client(use_local)
-            model = self.local_llm_model if use_local else self.model
+            client = self._get_client(provider)
+            model = self._get_model(provider)
 
             response = client.chat.completions.create(
                 model=model,
@@ -607,7 +649,7 @@ class LLMService:
         self,
         messages: List[Dict[str, str]],
         system_prompt: Optional[str] = None,
-        use_local: bool = False
+        provider: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         General chat with LLM.
@@ -615,14 +657,14 @@ class LLMService:
         Args:
             messages: List of message dicts with 'role' and 'content'
             system_prompt: Optional system prompt
-            use_local: Use local LLM
+            provider: LLM provider to use
 
         Returns:
             Chat response
         """
         try:
-            client = self._get_async_client(use_local)
-            model = self.local_llm_model if use_local else self.model
+            client = self._get_async_client(provider)
+            model = self._get_model(provider)
 
             full_messages = []
             if system_prompt:

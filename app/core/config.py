@@ -44,10 +44,26 @@ class Settings(BaseSettings):
     JWT_EXPIRE_MINUTES: int = 1440  # 24 hours
 
     # LLM Settings
+    DEFAULT_LLM_PROVIDER: str = "openai"
     OPENAI_API_KEY: str = ""
     OPENAI_MODEL: str = "gpt-4o"
     OPENAI_MAX_TOKENS: int = 4096
     OPENAI_TEMPERATURE: float = 0.7
+
+    # SiliconFlow Settings
+    SILICONFLOW_API_KEY: str = ""
+    SILICONFLOW_BASE_URL: str = "https://api.siliconflow.cn/v1"
+    SILICONFLOW_MODEL: str = "deepseek-ai/DeepSeek-V3"
+
+    # Qwen Settings
+    QWEN_API_KEY: str = ""
+    QWEN_BASE_URL: str = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+    QWEN_MODEL: str = "qwen-plus"
+
+    # Zhipu Settings
+    ZHIPU_API_KEY: str = ""
+    ZHIPU_BASE_URL: str = "https://open.bigmodel.cn/api/paas/v4"
+    ZHIPU_MODEL: str = "glm-4"
 
     # Local LLM Settings (optional)
     LOCAL_LLM_URL: Optional[str] = None

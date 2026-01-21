@@ -13,7 +13,8 @@ from app.core.database import get_db
 from app.services.settings_service import (
     SettingsService,
     test_github_connection,
-    test_openai_connection
+    test_openai_connection,
+    test_llm_provider_connection
 )
 
 router = APIRouter(prefix="/settings", tags=["Settings"])
@@ -44,6 +45,24 @@ class UpdateSettingsRequest(BaseModel):
     local_llm_url: Optional[str] = None
     local_llm_model: Optional[str] = None
 
+    # SiliconFlow
+    siliconflow_api_key: Optional[str] = None
+    siliconflow_base_url: Optional[str] = None
+    siliconflow_model: Optional[str] = None
+
+    # Qwen
+    qwen_api_key: Optional[str] = None
+    qwen_base_url: Optional[str] = None
+    qwen_model: Optional[str] = None
+
+    # Zhipu
+    zhipu_api_key: Optional[str] = None
+    zhipu_base_url: Optional[str] = None
+    zhipu_model: Optional[str] = None
+
+    # Default LLM Provider
+    default_llm_provider: Optional[str] = None
+
     # JWT
     jwt_secret_key: Optional[str] = None
     jwt_algorithm: Optional[str] = None
@@ -59,6 +78,14 @@ class TestGithubRequest(BaseModel):
 class TestOpenAIRequest(BaseModel):
     """Test OpenAI connection request."""
     api_key: str
+
+
+class TestLLMProviderRequest(BaseModel):
+    """Test LLM provider connection request."""
+    provider: str  # openai, siliconflow, qwen, zhipu, local
+    api_key: Optional[str] = None
+    base_url: Optional[str] = None
+    model: Optional[str] = None
 
 
 class TestResult(BaseModel):
@@ -136,6 +163,22 @@ async def test_openai(request: TestOpenAIRequest):
     Validates the API key by listing available models.
     """
     result = await test_openai_connection(request.api_key)
+    return TestResult(**result)
+
+
+@router.post("/test/llm", response_model=TestResult)
+async def test_llm_provider(request: TestLLMProviderRequest):
+    """
+    Test LLM provider connection.
+
+    Validates the provider credentials and connectivity.
+    """
+    result = await test_llm_provider_connection(
+        provider=request.provider,
+        api_key=request.api_key,
+        base_url=request.base_url,
+        model=request.model
+    )
     return TestResult(**result)
 
 

@@ -93,12 +93,8 @@ class SettingsService:
             settings: Dictionary of settings to update
         """
         for key, value in settings.items():
-            # 跳过空值（不覆盖现有敏感设置）
-            if value is None or value == "":
-                existing = await self.get_setting(key)
-                if existing:
-                    continue
-
+            # 直接更新所有提供的值，包括空值
+            # 这样用户可以清空敏感设置
             await self.set_setting(key, value)
 
     async def get_settings_by_category(self, category: str) -> Dict[str, Any]:
@@ -218,3 +214,53 @@ async def test_openai_connection(api_key: str) -> Dict[str, Any]:
             return {"success": True, "message": "API Key有效（触发速率限制）"}
         else:
             return {"success": False, "message": f"连接失败: {error_msg}"}
+
+
+async def test_llm_provider_connection(
+    provider: str,
+    api_key: Optional[str] = None,
+    base_url: Optional[str] = None,
+    model: Optional[str] = None
+) -> Dict[str, Any]:
+    """
+    Test LLM provider connection.
+
+    Args:
+        provider: Provider name (openai, siliconflow, qwen, zhipu, local)
+        api_key: API key for the provider
+        base_url: Base URL for the provider API
+        model: Model name to test
+
+    Returns:
+        Test result with success status and message
+    """
+    if not api_key and provider != "local":
+        return {"success": False, "message": "API Key不能为空"}
+
+    try:
+        # 根据提供商配置客户端
+        if provider == "local":
+            client = OpenAI(
+                base_url=base_url or "http://localhost:8000/v1",
+                api_key="not-needed"
+            )
+        else:
+            client = OpenAI(
+                api_key=api_key,
+                base_url=base_url
+            )
+
+        # 测试连接 - 使用模型列表API
+        models = client.models.list()
+        model_count = len(list(models))
+
+        return {
+            "success": True,
+            "message": f"{provider} 连接成功，可用模型数: {model_count}"
+        }
+    except Exception as e:
+        error_msg = str(e)
+        return {
+            "success": False,
+            "message": f"{provider} 连接失败: {error_msg}"
+        }

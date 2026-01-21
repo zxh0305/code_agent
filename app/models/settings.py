@@ -108,7 +108,7 @@ DEFAULT_SETTINGS = [
         "value_type": "bool",
         "description": "是否启用本地LLM",
         "is_sensitive": False,
-        "category": "local_llm"
+        "category": "llm_provider"
     },
     {
         "key": "local_llm_url",
@@ -116,7 +116,7 @@ DEFAULT_SETTINGS = [
         "value_type": "string",
         "description": "本地LLM服务地址",
         "is_sensitive": False,
-        "category": "local_llm"
+        "category": "llm_provider"
     },
     {
         "key": "local_llm_model",
@@ -124,7 +124,95 @@ DEFAULT_SETTINGS = [
         "value_type": "string",
         "description": "本地LLM模型名称",
         "is_sensitive": False,
-        "category": "local_llm"
+        "category": "llm_provider"
+    },
+
+    # SiliconFlow
+    {
+        "key": "siliconflow_api_key",
+        "value": "",
+        "value_type": "string",
+        "description": "硅基流动 API密钥",
+        "is_sensitive": True,
+        "category": "llm_provider"
+    },
+    {
+        "key": "siliconflow_base_url",
+        "value": "https://api.siliconflow.cn/v1",
+        "value_type": "string",
+        "description": "硅基流动 API地址",
+        "is_sensitive": False,
+        "category": "llm_provider"
+    },
+    {
+        "key": "siliconflow_model",
+        "value": "deepseek-ai/DeepSeek-V3",
+        "value_type": "string",
+        "description": "硅基流动模型名称",
+        "is_sensitive": False,
+        "category": "llm_provider"
+    },
+
+    # Qwen
+    {
+        "key": "qwen_api_key",
+        "value": "",
+        "value_type": "string",
+        "description": "千问 API密钥",
+        "is_sensitive": True,
+        "category": "llm_provider"
+    },
+    {
+        "key": "qwen_base_url",
+        "value": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+        "value_type": "string",
+        "description": "千问 API地址",
+        "is_sensitive": False,
+        "category": "llm_provider"
+    },
+    {
+        "key": "qwen_model",
+        "value": "qwen-plus",
+        "value_type": "string",
+        "description": "千问模型名称",
+        "is_sensitive": False,
+        "category": "llm_provider"
+    },
+
+    # Zhipu
+    {
+        "key": "zhipu_api_key",
+        "value": "",
+        "value_type": "string",
+        "description": "智谱 API密钥",
+        "is_sensitive": True,
+        "category": "llm_provider"
+    },
+    {
+        "key": "zhipu_base_url",
+        "value": "https://open.bigmodel.cn/api/paas/v4",
+        "value_type": "string",
+        "description": "智谱 API地址",
+        "is_sensitive": False,
+        "category": "llm_provider"
+    },
+    {
+        "key": "zhipu_model",
+        "value": "glm-4",
+        "value_type": "string",
+        "description": "智谱模型名称",
+        "is_sensitive": False,
+        "category": "llm_provider"
+    },
+
+    # Default LLM Provider
+    {
+        "key": "default_llm_provider",
+        "value": "openai",
+        "value_type": "string",
+        "description": "默认LLM提供商 (openai/siliconflow/qwen/zhipu/local)",
+        "is_sensitive": False,
+        "category": "llm_provider"
     },
 
     # JWT
