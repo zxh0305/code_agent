@@ -13,6 +13,7 @@ import {
   Divider,
   Tag,
   Switch,
+  Select,
 } from 'antd'
 import {
   GithubOutlined,
@@ -27,7 +28,7 @@ import {
   EyeOutlined,
   LinkOutlined,
 } from '@ant-design/icons'
-import { settingsService, SystemSettings } from '../services/settingsService'
+import { settingsService, SystemSettings, TestLLMProviderRequest } from '../services/settingsService'
 
 const { Title, Text, Paragraph } = Typography
 const { TabPane } = Tabs
@@ -37,9 +38,24 @@ function Settings() {
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [testingGithub, setTestingGithub] = useState(false)
-  const [testingOpenAI, setTestingOpenAI] = useState(false)
+  const [testingLLM, setTestingLLM] = useState(false)
   const [githubStatus, setGithubStatus] = useState<'success' | 'error' | 'untested'>('untested')
-  const [openaiStatus, setOpenaiStatus] = useState<'success' | 'error' | 'untested'>('untested')
+  const [selectedProvider, setSelectedProvider] = useState('openai')
+  const [providerStatus, setProviderStatus] = useState<Record<string, 'success' | 'error' | 'untested'>>({
+    openai: 'untested',
+    siliconflow: 'untested',
+    qwen: 'untested',
+    zhipu: 'untested',
+    local: 'untested'
+  })
+
+  const providers = [
+    { value: 'openai', label: 'OpenAI', icon: <RobotOutlined /> },
+    { value: 'siliconflow', label: '硅基流动', icon: <RobotOutlined /> },
+    { value: 'qwen', label: '千问', icon: <RobotOutlined /> },
+    { value: 'zhipu', label: '智谱', icon: <RobotOutlined /> },
+    { value: 'local', label: '本地 LLM', icon: <RobotOutlined /> }
+  ]
 
   // 加载设置
   useEffect(() => {
@@ -95,24 +111,36 @@ function Settings() {
     }
   }
 
-  // 测试OpenAI连接
-  const testOpenAIConnection = async () => {
-    setTestingOpenAI(true)
+  // 测试LLM提供商连接
+  const testProviderConnection = async () => {
+    const values = form.getFieldsValue()
+    const provider = selectedProvider
+
+    setProviderStatus(prev => ({ ...prev, [provider]: 'untested' }))
+    setTestingLLM(true)
+
     try {
-      const values = form.getFieldsValue()
-      const result = await settingsService.testOpenAIConnection(values.openai_api_key)
+      const request: TestLLMProviderRequest = {
+        provider,
+        api_key: values[`${provider}_api_key`],
+        base_url: values[`${provider}_base_url`],
+        model: values[`${provider}_model`]
+      }
+
+      const result = await settingsService.testLLMProvider(request)
+
       if (result.success) {
-        setOpenaiStatus('success')
-        message.success('OpenAI连接测试成功')
+        setProviderStatus(prev => ({ ...prev, [provider]: 'success' }))
+        message.success(`${providers.find(p => p.value === provider)?.label}连接测试成功`)
       } else {
-        setOpenaiStatus('error')
-        message.error(result.message || 'OpenAI连接测试失败')
+        setProviderStatus(prev => ({ ...prev, [provider]: 'error' }))
+        message.error(result.message || '连接测试失败')
       }
     } catch (error) {
-      setOpenaiStatus('error')
-      message.error('OpenAI连接测试失败')
+      setProviderStatus(prev => ({ ...prev, [provider]: 'error' }))
+      message.error('连接测试失败')
     } finally {
-      setTestingOpenAI(false)
+      setTestingLLM(false)
     }
   }
 
@@ -155,6 +183,13 @@ function Settings() {
           openai_model: 'gpt-4o',
           openai_max_tokens: 4096,
           openai_temperature: 0.7,
+          siliconflow_base_url: 'https://api.siliconflow.cn/v1',
+          siliconflow_model: 'deepseek-ai/DeepSeek-V3',
+          qwen_base_url: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+          qwen_model: 'qwen-plus',
+          zhipu_base_url: 'https://open.bigmodel.cn/api/paas/v4',
+          zhipu_model: 'glm-4',
+          default_llm_provider: 'openai',
           jwt_algorithm: 'HS256',
           jwt_expire_minutes: 1440,
         }}
@@ -252,107 +287,137 @@ function Settings() {
             </Card>
           </TabPane>
 
-          {/* OpenAI 设置 */}
+          {/* LLM 提供商设置 */}
           <TabPane
             tab={
               <span>
                 <RobotOutlined />
-                OpenAI API
-                {renderStatusTag(openaiStatus)}
+                LLM 提供商
               </span>
             }
-            key="openai"
+            key="llm"
           >
             <Card>
-              <Alert
-                message="如何获取OpenAI API密钥？"
-                description={
-                  <div>
-                    <ol style={{ margin: '8px 0', paddingLeft: 20 }}>
-                      <li>访问 <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer">OpenAI API Keys <LinkOutlined /></a></li>
-                      <li>登录您的OpenAI账户</li>
-                      <li>点击 "Create new secret key"</li>
-                      <li>复制生成的API密钥（注意：密钥只显示一次）</li>
-                    </ol>
-                    <Text type="secondary">注意：使用OpenAI API需要有效的付费账户或额度。</Text>
-                  </div>
-                }
-                type="info"
-                showIcon
-                style={{ marginBottom: 24 }}
-              />
-
+              {/* 默认提供商选择 */}
               <Form.Item
-                name="openai_api_key"
-                label={
-                  <span>
-                    API Key
-                    <Tooltip title="OpenAI API密钥，以sk-开头">
-                      <QuestionCircleOutlined style={{ marginLeft: 4 }} />
-                    </Tooltip>
-                  </span>
-                }
-                rules={[{ required: false, message: '请输入OpenAI API Key' }]}
+                name="default_llm_provider"
+                label="默认提供商"
+                tooltip="系统默认使用的LLM提供商"
               >
-                <Input.Password
-                  placeholder="sk-..."
-                  iconRender={(visible) => (visible ? <EyeOutlined /> : <EyeInvisibleOutlined />)}
-                />
-              </Form.Item>
-
-              <Form.Item
-                name="openai_model"
-                label="模型选择"
-              >
-                <Input placeholder="gpt-4o" />
-              </Form.Item>
-
-              <Form.Item
-                name="openai_max_tokens"
-                label="最大Token数"
-              >
-                <Input type="number" placeholder="4096" />
-              </Form.Item>
-
-              <Form.Item
-                name="openai_temperature"
-                label="Temperature"
-              >
-                <Input type="number" step="0.1" placeholder="0.7" />
+                <Select>
+                  {providers.map(p => (
+                    <Select.Option key={p.value} value={p.value}>
+                      {p.icon} {p.label}
+                    </Select.Option>
+                  ))}
+                </Select>
               </Form.Item>
 
               <Divider />
 
-              <Title level={5}>本地LLM设置（可选）</Title>
-              <Paragraph type="secondary">
-                如果您有本地部署的LLM服务（如CodeLlama），可以在此配置作为OpenAI的替代方案。
-              </Paragraph>
-
-              <Form.Item
-                name="local_llm_enabled"
-                label="启用本地LLM"
-                valuePropName="checked"
-              >
-                <Switch />
+              {/* 提供商选择下拉菜单 */}
+              <Form.Item label="选择要配置的提供商">
+                <Select
+                  value={selectedProvider}
+                  onChange={setSelectedProvider}
+                  style={{ width: 200 }}
+                >
+                  {providers.map(p => (
+                    <Select.Option key={p.value} value={p.value}>
+                      {p.icon} {p.label} {renderStatusTag(providerStatus[p.value])}
+                    </Select.Option>
+                  ))}
+                </Select>
               </Form.Item>
 
-              <Form.Item
-                name="local_llm_url"
-                label="本地LLM服务地址"
-              >
-                <Input placeholder="http://localhost:8000/v1" />
-              </Form.Item>
+              {/* 动态渲染当前提供商的配置 */}
+              {selectedProvider !== 'local' && (
+                <>
+                  <Alert
+                    message={`${providers.find(p => p.value === selectedProvider)?.label} 配置`}
+                    description={
+                      <div>
+                        <Text type="secondary">
+                          配置 {providers.find(p => p.value === selectedProvider)?.label} 的 API 密钥和参数。
+                          {selectedProvider === 'openai' && ' 注意：使用OpenAI API需要有效的付费账户或额度。'}
+                        </Text>
+                      </div>
+                    }
+                    type="info"
+                    showIcon
+                    style={{ marginBottom: 24 }}
+                  />
 
-              <Form.Item
-                name="local_llm_model"
-                label="本地LLM模型名称"
-              >
-                <Input placeholder="codellama" />
-              </Form.Item>
+                  <Form.Item
+                    name={`${selectedProvider}_api_key`}
+                    label="API Key"
+                    rules={[{ required: false, message: '请输入API Key' }]}
+                  >
+                    <Input.Password
+                      placeholder="输入API Key"
+                      iconRender={(visible) => (visible ? <EyeOutlined /> : <EyeInvisibleOutlined />)}
+                    />
+                  </Form.Item>
+
+                  <Form.Item
+                    name={`${selectedProvider}_base_url`}
+                    label="API 地址"
+                  >
+                    <Input placeholder="API Base URL" />
+                  </Form.Item>
+
+                  <Form.Item
+                    name={`${selectedProvider}_model`}
+                    label="模型名称"
+                  >
+                    <Input placeholder="模型名称" />
+                  </Form.Item>
+                </>
+              )}
+
+              {selectedProvider === 'local' && (
+                <>
+                  <Alert
+                    message="本地LLM配置"
+                    description={
+                      <div>
+                        <Text type="secondary">
+                          如果您有本地部署的LLM服务（如CodeLlama），可以在此配置。
+                        </Text>
+                      </div>
+                    }
+                    type="info"
+                    showIcon
+                    style={{ marginBottom: 24 }}
+                  />
+
+                  <Form.Item
+                    name="local_llm_enabled"
+                    label="启用本地LLM"
+                    valuePropName="checked"
+                  >
+                    <Switch />
+                  </Form.Item>
+
+                  <Form.Item
+                    name="local_llm_url"
+                    label="本地LLM服务地址"
+                  >
+                    <Input placeholder="http://localhost:8000/v1" />
+                  </Form.Item>
+
+                  <Form.Item
+                    name="local_llm_model"
+                    label="本地LLM模型名称"
+                  >
+                    <Input placeholder="codellama" />
+                  </Form.Item>
+                </>
+              )}
 
               <Button
-                onClick={testOpenAIConnection}
-                loading={testingOpenAI}
+                onClick={testProviderConnection}
+                loading={testingLLM}
                 icon={<CheckCircleOutlined />}
               >
                 测试连接
