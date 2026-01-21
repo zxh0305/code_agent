@@ -117,6 +117,12 @@ function Sidebar() {
         selectedKeys={[location.pathname]}
         defaultOpenKeys={['github', 'code', 'pr', 'ai']}
         items={menuItems}
+        onClick={({ key }) => {
+          // Force re-render when menu item is clicked
+          if (key !== location.pathname) {
+            window.location.href = key
+          }
+        }}
       />
     </Sider>
   )

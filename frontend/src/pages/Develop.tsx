@@ -14,6 +14,8 @@ import {
   Alert,
   Tag,
   Tooltip,
+  Badge,
+  Descriptions,
 } from 'antd'
 import {
   GithubOutlined,
@@ -25,8 +27,11 @@ import {
   LinkOutlined,
   CheckCircleOutlined,
   ExclamationCircleOutlined,
+  RobotOutlined,
+  DatabaseOutlined,
 } from '@ant-design/icons'
 import { githubApi, llmApi, Repository, Branch } from '../services/api'
+import { settingsService } from '../services/settingsService'
 
 const { Title, Text, Paragraph } = Typography
 const { TextArea } = Input
@@ -48,11 +53,16 @@ function Develop() {
   const [repoLoading, setRepoLoading] = useState(false)
   const [branchLoading, setBranchLoading] = useState(false)
 
+  // State for current settings
+  const [currentModel, setCurrentModel] = useState<string>('gpt-4o')
+  const [currentProvider, setCurrentProvider] = useState<string>('OpenAI')
+
   // Check GitHub connection status
   const checkConnection = useCallback(async () => {
     try {
       setLoading(true)
-      const repoList = await githubApi.getRepos()
+      const response = await githubApi.getRepos() as any
+      const repoList = response.repositories || response
       setRepos(repoList)
       setIsConnected(true)
     } catch (error) {
@@ -66,13 +76,26 @@ function Develop() {
   // Initial load
   useEffect(() => {
     checkConnection()
+    loadCurrentSettings()
   }, [checkConnection])
+
+  // Load current settings
+  const loadCurrentSettings = async () => {
+    try {
+      const settings = await settingsService.getSettings()
+      setCurrentModel(settings.openai_model || 'gpt-4o')
+      setCurrentProvider(settings.default_llm_provider || 'OpenAI')
+    } catch (error) {
+      console.error('Failed to load settings:', error)
+    }
+  }
 
   // Refresh repositories
   const refreshRepos = async () => {
     try {
       setRepoLoading(true)
-      const repoList = await githubApi.getRepos()
+      const response = await githubApi.getRepos() as any
+      const repoList = response.repositories || response
       setRepos(repoList)
       setIsConnected(true)
       message.success('仓库列表已刷新')
@@ -95,7 +118,8 @@ function Develop() {
     const [owner, repo] = value.split('/')
     try {
       setBranchLoading(true)
-      const branchList = await githubApi.getBranches(owner, repo)
+      const response = await githubApi.getBranches(owner, repo) as any
+      const branchList = response.branches || response
       setBranches(branchList)
 
       // Auto-select default branch
@@ -125,7 +149,8 @@ function Develop() {
     const [owner, repo] = selectedRepo.split('/')
     try {
       setBranchLoading(true)
-      const branchList = await githubApi.getBranches(owner, repo)
+      const response = await githubApi.getBranches(owner, repo) as any
+      const branchList = response.branches || response
       setBranches(branchList)
       message.success('分支列表已刷新')
     } catch (error: any) {
@@ -174,6 +199,75 @@ function Develop() {
 
   return (
     <div style={{ padding: '24px', marginLeft: 220 }}>
+      {/* Current Context Bar */}
+      <Card
+        style={{
+          marginBottom: 24,
+          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+          border: 'none',
+          borderRadius: 12,
+        }}
+      >
+        <Row gutter={16} align="middle">
+          <Col>
+            <Space size="large">
+              <Badge
+                count={<RobotOutlined />}
+                style={{ backgroundColor: 'rgba(255,255,255,0.2)' }}
+              >
+                <div style={{ color: '#fff', fontSize: 14 }}>
+                  <Text style={{ color: '#fff', fontSize: 12, opacity: 0.8 }}>AI模型:</Text>
+                  <div style={{ fontSize: 16, fontWeight: 'bold', marginTop: 4 }}>
+                    {currentProvider} - {currentModel}
+                  </div>
+                </div>
+              </Badge>
+
+              {selectedRepo && (
+                <Badge
+                  count={<DatabaseOutlined />}
+                  style={{ backgroundColor: 'rgba(255,255,255,0.2)' }}
+                >
+                  <div style={{ color: '#fff', fontSize: 14 }}>
+                    <Text style={{ color: '#fff', fontSize: 12, opacity: 0.8 }}>仓库:</Text>
+                    <div style={{ fontSize: 16, fontWeight: 'bold', marginTop: 4 }}>
+                      {selectedRepo}
+                    </div>
+                  </div>
+                </Badge>
+              )}
+
+              {selectedBranch && (
+                <Badge
+                  count={<BranchesOutlined />}
+                  style={{ backgroundColor: 'rgba(255,255,255,0.2)' }}
+                >
+                  <div style={{ color: '#fff', fontSize: 14 }}>
+                    <Text style={{ color: '#fff', fontSize: 12, opacity: 0.8 }}>分支:</Text>
+                    <div style={{ fontSize: 16, fontWeight: 'bold', marginTop: 4 }}>
+                      {selectedBranch}
+                    </div>
+                  </div>
+                </Badge>
+              )}
+            </Space>
+          </Col>
+          <Col style={{ textAlign: 'right' }}>
+            <Button
+              type="primary"
+              ghost
+              icon={<ReloadOutlined />}
+              onClick={() => {
+                checkConnection()
+                loadCurrentSettings()
+              }}
+            >
+              刷新状态
+            </Button>
+          </Col>
+        </Row>
+      </Card>
+
       <Title level={2}>
         <CodeOutlined style={{ marginRight: 12 }} />
         代码开发

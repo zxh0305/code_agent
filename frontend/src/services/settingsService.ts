@@ -69,7 +69,8 @@ class SettingsService {
    * 保存系统设置
    */
   async saveSettings(settings: SystemSettings): Promise<void> {
-    await axios.post(`${API_BASE_URL}/settings`, settings)
+    const response = await axios.post(`${API_BASE_URL}/settings`, settings)
+    return response.data
   }
 
   /**
