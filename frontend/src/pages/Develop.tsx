@@ -15,7 +15,6 @@ import {
   Tag,
   Tooltip,
   Badge,
-  Descriptions,
 } from 'antd'
 import {
   GithubOutlined,
@@ -29,8 +28,9 @@ import {
   ExclamationCircleOutlined,
   RobotOutlined,
   DatabaseOutlined,
+  DisconnectOutlined,
 } from '@ant-design/icons'
-import { githubApi, llmApi, Repository, Branch } from '../services/api'
+import { githubApi, llmApi, Repository, Branch, tokenManager } from '../services/api'
 import { settingsService } from '../services/settingsService'
 
 const { Title, Text, Paragraph } = Typography
@@ -59,15 +59,25 @@ function Develop() {
 
   // Check GitHub connection status
   const checkConnection = useCallback(async () => {
-    try {
-      setLoading(true)
-      const response = await githubApi.getRepos() as any
-      const repoList = response.repositories || response
-      setRepos(repoList)
-      setIsConnected(true)
-    } catch (error) {
+    if (!tokenManager.hasToken()) {
       setIsConnected(false)
       setRepos([])
+      return
+    }
+
+    try {
+      setLoading(true)
+      const response = await githubApi.getRepos()
+      setRepos(response.repositories || [])
+      setIsConnected(true)
+    } catch (error) {
+      console.error('Failed to check GitHub connection:', error)
+      setIsConnected(false)
+      setRepos([])
+      // 如果 token 失效,清除 token
+      if (error instanceof Error && error.message.includes('token')) {
+        tokenManager.remove()
+      }
     } finally {
       setLoading(false)
     }
@@ -92,11 +102,15 @@ function Develop() {
 
   // Refresh repositories
   const refreshRepos = async () => {
+    if (!tokenManager.hasToken()) {
+      message.warning('请先连接 GitHub')
+      return
+    }
+
     try {
       setRepoLoading(true)
-      const response = await githubApi.getRepos() as any
-      const repoList = response.repositories || response
-      setRepos(repoList)
+      const response = await githubApi.getRepos()
+      setRepos(response.repositories || [])
       setIsConnected(true)
       message.success('仓库列表已刷新')
     } catch (error: any) {
@@ -118,14 +132,13 @@ function Develop() {
     const [owner, repo] = value.split('/')
     try {
       setBranchLoading(true)
-      const response = await githubApi.getBranches(owner, repo) as any
-      const branchList = response.branches || response
-      setBranches(branchList)
+      const response = await githubApi.getBranches(owner, repo)
+      setBranches(response.branches || [])
 
       // Auto-select default branch
       const selectedRepoData = repos.find((r) => r.full_name === value)
       if (selectedRepoData?.default_branch) {
-        const defaultBranch = branchList.find(
+        const defaultBranch = response.branches.find(
           (b) => b.name === selectedRepoData.default_branch
         )
         if (defaultBranch) {
@@ -149,9 +162,8 @@ function Develop() {
     const [owner, repo] = selectedRepo.split('/')
     try {
       setBranchLoading(true)
-      const response = await githubApi.getBranches(owner, repo) as any
-      const branchList = response.branches || response
-      setBranches(branchList)
+      const response = await githubApi.getBranches(owner, repo)
+      setBranches(response.branches || [])
       message.success('分支列表已刷新')
     } catch (error: any) {
       message.error(error.message || '刷新分支列表失败')
@@ -168,6 +180,17 @@ function Develop() {
     } catch (error: any) {
       message.error(error.message || '获取GitHub授权链接失败')
     }
+  }
+
+  // Disconnect GitHub
+  const disconnectGitHub = () => {
+    tokenManager.remove()
+    setIsConnected(false)
+    setRepos([])
+    setBranches([])
+    setSelectedRepo(null)
+    setSelectedBranch(null)
+    message.success('已断开 GitHub 连接')
   }
 
   // Generate code from requirement
@@ -208,7 +231,7 @@ function Develop() {
           borderRadius: 12,
         }}
       >
-        <Row gutter={16} align="middle">
+        <Row gutter={16} align="middle" justify="space-between">
           <Col>
             <Space size="large">
               <Badge
@@ -219,6 +242,22 @@ function Develop() {
                   <Text style={{ color: '#fff', fontSize: 12, opacity: 0.8 }}>AI模型:</Text>
                   <div style={{ fontSize: 16, fontWeight: 'bold', marginTop: 4 }}>
                     {currentProvider} - {currentModel}
+                  </div>
+                </div>
+              </Badge>
+
+              <Badge
+                count={isConnected ? <CheckCircleOutlined /> : <ExclamationCircleOutlined />}
+                style={{
+                  backgroundColor: isConnected
+                    ? 'rgba(82, 196, 26, 0.8)'
+                    : 'rgba(255, 77, 79, 0.8)',
+                }}
+              >
+                <div style={{ color: '#fff', fontSize: 14 }}>
+                  <Text style={{ color: '#fff', fontSize: 12, opacity: 0.8 }}>GitHub:</Text>
+                  <div style={{ fontSize: 16, fontWeight: 'bold', marginTop: 4 }}>
+                    {isConnected ? '已连接' : '未连接'}
                   </div>
                 </div>
               </Badge>
@@ -252,18 +291,31 @@ function Develop() {
               )}
             </Space>
           </Col>
-          <Col style={{ textAlign: 'right' }}>
-            <Button
-              type="primary"
-              ghost
-              icon={<ReloadOutlined />}
-              onClick={() => {
-                checkConnection()
-                loadCurrentSettings()
-              }}
-            >
-              刷新状态
-            </Button>
+          <Col>
+            <Space>
+              {isConnected && (
+                <Button
+                  type="primary"
+                  danger
+                  ghost
+                  icon={<DisconnectOutlined />}
+                  onClick={disconnectGitHub}
+                >
+                  断开连接
+                </Button>
+              )}
+              <Button
+                type="primary"
+                ghost
+                icon={<ReloadOutlined />}
+                onClick={() => {
+                  checkConnection()
+                  loadCurrentSettings()
+                }}
+              >
+                刷新状态
+              </Button>
+            </Space>
           </Col>
         </Row>
       </Card>
@@ -293,21 +345,160 @@ function Develop() {
           onChange={(e) => setRequirement(e.target.value)}
           style={{ marginBottom: 16, fontSize: 14 }}
         />
-        <Row justify="space-between" align="middle">
-          <Col>
-            {selectedRepo && (
-              <Space>
-                <Tag color="blue" icon={<FolderOutlined />}>
-                  {selectedRepo}
-                </Tag>
-                {selectedBranch && (
-                  <Tag color="green" icon={<BranchesOutlined />}>
-                    {selectedBranch}
-                  </Tag>
-                )}
-              </Space>
+
+        {/* GitHub Connection Section - 放在输入框下方 */}
+        {!isConnected ? (
+          <Alert
+            message="未连接到GitHub"
+            description="请先连接您的GitHub账户以选择目标仓库和分支。"
+            type="warning"
+            showIcon
+            icon={<GithubOutlined />}
+            action={
+              <Button type="primary" icon={<GithubOutlined />} onClick={connectGitHub}>
+                连接GitHub
+              </Button>
+            }
+            style={{ marginBottom: 16 }}
+          />
+        ) : (
+          <div style={{ marginBottom: 16 }}>
+            <Row gutter={16}>
+              {/* Repository Selection */}
+              <Col span={12}>
+                <Space style={{ width: '100%', marginBottom: 8 }} direction="vertical" size={4}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Text strong>
+                      <FolderOutlined style={{ marginRight: 8 }} />
+                      选择仓库
+                    </Text>
+                    <Button
+                      type="link"
+                      size="small"
+                      icon={<ReloadOutlined />}
+                      loading={repoLoading}
+                      onClick={refreshRepos}
+                    >
+                      刷新
+                    </Button>
+                  </div>
+                  <Select
+                    placeholder="选择仓库"
+                    style={{ width: '100%' }}
+                    value={selectedRepo}
+                    onChange={handleRepoSelect}
+                    loading={repoLoading}
+                    showSearch
+                    allowClear
+                    filterOption={(input, option) =>
+                      (option?.label as string)?.toLowerCase().includes(input.toLowerCase())
+                    }
+                    options={repos.map((repo) => ({
+                      label: repo.full_name,
+                      value: repo.full_name,
+                      repo: repo
+                    }))}
+                    optionRender={(option) => (
+                      <Space>
+                        <GithubOutlined />
+                        {option.data.repo.full_name}
+                        {option.data.repo.is_private && <Tag color="orange">私有</Tag>}
+                      </Space>
+                    )}
+                  />
+                </Space>
+              </Col>
+
+              {/* Branch Selection */}
+              <Col span={12}>
+                <Space style={{ width: '100%', marginBottom: 8 }} direction="vertical" size={4}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Text strong>
+                      <BranchesOutlined style={{ marginRight: 8 }} />
+                      选择分支
+                    </Text>
+                    <Button
+                      type="link"
+                      size="small"
+                      icon={<ReloadOutlined />}
+                      loading={branchLoading}
+                      onClick={refreshBranches}
+                      disabled={!selectedRepo}
+                    >
+                      刷新
+                    </Button>
+                  </div>
+                  <Select
+                    placeholder={selectedRepo ? '选择分支' : '请先选择仓库'}
+                    style={{ width: '100%' }}
+                    value={selectedBranch}
+                    onChange={setSelectedBranch}
+                    loading={branchLoading}
+                    disabled={!selectedRepo}
+                    showSearch
+                    allowClear
+                    filterOption={(input, option) =>
+                      (option?.label as string)?.toLowerCase().includes(input.toLowerCase())
+                    }
+                    options={branches.map((branch) => ({
+                      label: branch.name,
+                      value: branch.name,
+                      branch: branch
+                    }))}
+                    optionRender={(option) => (
+                      <Space>
+                        <BranchesOutlined />
+                        {option.data.branch.name}
+                        {option.data.branch.protected && <Tag color="red">受保护</Tag>}
+                      </Space>
+                    )}
+                  />
+                </Space>
+              </Col>
+            </Row>
+
+            {/* Selected Repository Info */}
+            {selectedRepoInfo && (
+              <Card size="small" style={{ background: '#fafafa', marginTop: 16 }}>
+                <Row gutter={16} align="middle">
+                  <Col flex="auto">
+                    <div>
+                      <Text strong>{selectedRepoInfo.full_name}</Text>
+                      {selectedRepoInfo.description && (
+                        <Paragraph
+                          type="secondary"
+                          style={{ marginBottom: 0, marginTop: 4, fontSize: 12 }}
+                          ellipsis={{ rows: 2 }}
+                        >
+                          {selectedRepoInfo.description}
+                        </Paragraph>
+                      )}
+                    </div>
+                  </Col>
+                  <Col>
+                    <Space>
+                      {selectedRepoInfo.language && (
+                        <Tag color="blue">{selectedRepoInfo.language}</Tag>
+                      )}
+                      <Tag>⭐ {selectedRepoInfo.stars_count}</Tag>
+                      <Tooltip title="在GitHub中打开">
+                        <Button
+                          type="link"
+                          size="small"
+                          icon={<LinkOutlined />}
+                          href={selectedRepoInfo.html_url}
+                          target="_blank"
+                        />
+                      </Tooltip>
+                    </Space>
+                  </Col>
+                </Row>
+              </Card>
             )}
-          </Col>
+          </div>
+        )}
+
+        <Row justify="end">
           <Col>
             <Button
               type="primary"
@@ -321,188 +512,6 @@ function Develop() {
             </Button>
           </Col>
         </Row>
-      </Card>
-
-      {/* GitHub Connection */}
-      <Card
-        title={
-          <Space>
-            <GithubOutlined />
-            <span>GitHub 连接</span>
-            {isConnected ? (
-              <Tag color="success" icon={<CheckCircleOutlined />}>
-                已连接
-              </Tag>
-            ) : (
-              <Tag color="warning" icon={<ExclamationCircleOutlined />}>
-                未连接
-              </Tag>
-            )}
-          </Space>
-        }
-        style={{ marginBottom: 24 }}
-        extra={
-          loading ? (
-            <Spin size="small" />
-          ) : (
-            <Tooltip title="刷新连接状态">
-              <Button
-                type="text"
-                icon={<ReloadOutlined />}
-                onClick={checkConnection}
-              />
-            </Tooltip>
-          )
-        }
-      >
-        {!isConnected ? (
-          <Alert
-            message="未连接到GitHub"
-            description="请先连接您的GitHub账户以访问仓库和分支。"
-            type="warning"
-            showIcon
-            action={
-              <Button type="primary" onClick={connectGitHub}>
-                连接GitHub
-              </Button>
-            }
-            style={{ marginBottom: 16 }}
-          />
-        ) : (
-          <Row gutter={16}>
-            {/* Repository Selection */}
-            <Col span={12}>
-              <div style={{ marginBottom: 8 }}>
-                <Text strong>
-                  <FolderOutlined style={{ marginRight: 8 }} />
-                  选择仓库
-                </Text>
-                <Button
-                  type="link"
-                  size="small"
-                  icon={<ReloadOutlined />}
-                  loading={repoLoading}
-                  onClick={refreshRepos}
-                  style={{ float: 'right' }}
-                >
-                  刷新
-                </Button>
-              </div>
-              <Select
-                placeholder="选择仓库"
-                style={{ width: '100%' }}
-                value={selectedRepo}
-                onChange={handleRepoSelect}
-                loading={repoLoading}
-                showSearch
-                filterOption={(input, option) =>
-                  (option?.children as unknown as string)
-                    ?.toLowerCase()
-                    .includes(input.toLowerCase())
-                }
-              >
-                {repos.map((repo) => (
-                  <Option key={repo.full_name} value={repo.full_name}>
-                    <Space>
-                      <GithubOutlined />
-                      {repo.full_name}
-                      {repo.is_private && <Tag color="orange">私有</Tag>}
-                    </Space>
-                  </Option>
-                ))}
-              </Select>
-            </Col>
-
-            {/* Branch Selection */}
-            <Col span={12}>
-              <div style={{ marginBottom: 8 }}>
-                <Text strong>
-                  <BranchesOutlined style={{ marginRight: 8 }} />
-                  选择分支
-                </Text>
-                <Button
-                  type="link"
-                  size="small"
-                  icon={<ReloadOutlined />}
-                  loading={branchLoading}
-                  onClick={refreshBranches}
-                  disabled={!selectedRepo}
-                  style={{ float: 'right' }}
-                >
-                  刷新
-                </Button>
-              </div>
-              <Select
-                placeholder={selectedRepo ? '选择分支' : '请先选择仓库'}
-                style={{ width: '100%' }}
-                value={selectedBranch}
-                onChange={setSelectedBranch}
-                loading={branchLoading}
-                disabled={!selectedRepo}
-                showSearch
-                filterOption={(input, option) =>
-                  (option?.children as unknown as string)
-                    ?.toLowerCase()
-                    .includes(input.toLowerCase())
-                }
-              >
-                {branches.map((branch) => (
-                  <Option key={branch.name} value={branch.name}>
-                    <Space>
-                      <BranchesOutlined />
-                      {branch.name}
-                      {branch.protected && <Tag color="red">受保护</Tag>}
-                    </Space>
-                  </Option>
-                ))}
-              </Select>
-            </Col>
-          </Row>
-        )}
-
-        {/* Selected Repository Info */}
-        {selectedRepoInfo && (
-          <>
-            <Divider style={{ margin: '16px 0' }} />
-            <Row gutter={16}>
-              <Col span={24}>
-                <Card size="small" style={{ background: '#fafafa' }}>
-                  <Row gutter={16}>
-                    <Col span={16}>
-                      <Text strong>{selectedRepoInfo.full_name}</Text>
-                      {selectedRepoInfo.description && (
-                        <Paragraph
-                          type="secondary"
-                          style={{ marginBottom: 0, marginTop: 4 }}
-                          ellipsis={{ rows: 2 }}
-                        >
-                          {selectedRepoInfo.description}
-                        </Paragraph>
-                      )}
-                    </Col>
-                    <Col span={8} style={{ textAlign: 'right' }}>
-                      <Space>
-                        {selectedRepoInfo.language && (
-                          <Tag color="blue">{selectedRepoInfo.language}</Tag>
-                        )}
-                        <Tag>⭐ {selectedRepoInfo.stars_count}</Tag>
-                        <Tooltip title="在GitHub中打开">
-                          <Button
-                            type="link"
-                            size="small"
-                            icon={<LinkOutlined />}
-                            href={selectedRepoInfo.html_url}
-                            target="_blank"
-                          />
-                        </Tooltip>
-                      </Space>
-                    </Col>
-                  </Row>
-                </Card>
-              </Col>
-            </Row>
-          </>
-        )}
       </Card>
 
       {/* Generated Code Output */}
