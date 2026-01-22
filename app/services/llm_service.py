@@ -297,6 +297,61 @@ class LLMService:
                 "message": str(e)
             }
 
+    async def generate_code_async(
+        self,
+        requirements: str,
+        language: str = "python",
+        context: Optional[str] = None,
+        use_local: bool = False,
+        provider: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Generate code based on requirements (async version).
+
+        Args:
+            requirements: Code requirements description
+            language: Programming language
+            context: Existing code context
+            provider: LLM provider to use (openai, siliconflow, qwen, zhipu, local)
+        Returns:
+            Generated code and metadata
+        """
+        try:
+            prompt = PromptTemplates.CODE_GENERATION.format(
+                requirements=requirements,
+                context=context or "No existing context provided",
+                language=language
+            )
+
+            client = self._get_async_client(provider)
+            model = self._get_model(provider)
+            response = await client.chat.completions.create(
+                model=model,
+                messages=[
+                    {"role": "system", "content": "You are an expert software developer."},
+                    {"role": "user", "content": prompt}
+                ],
+                max_tokens=self.max_tokens,
+                temperature=self.temperature
+            )
+
+            result = self._parse_response(response)
+            return {
+                "status": "success",
+                "code": result.content,
+                "model": result.model,
+                "tokens": {
+                    "prompt": result.prompt_tokens,
+                    "completion": result.completion_tokens,
+                    "total": result.total_tokens
+                }
+            }
+        except Exception as e:
+            return {
+                "status": "error",
+                "message": str(e)
+            }
+
     def modify_code(
         self,
         original_code: str,

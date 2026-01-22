@@ -20,6 +20,7 @@ class GenerateCodeRequest(BaseModel):
     language: str = "python"
     context: Optional[str] = None
     use_local: bool = False
+    provider: Optional[str] = None  # Add provider field
 
 
 class ModifyCodeRequest(BaseModel):
@@ -89,11 +90,12 @@ async def generate_code(request: GenerateCodeRequest):
 
     Uses LLM to generate production-ready code.
     """
-    result = llm_service.generate_code(
+    result = await llm_service.generate_code_async(
         requirements=request.requirements,
         language=request.language,
         context=request.context,
-        use_local=request.use_local
+        use_local=request.use_local,
+        provider=request.provider
     )
 
     if result["status"] == "error":
