@@ -229,8 +229,8 @@ function Develop() {
     message.success('已断开 GitHub 连接')
   }
 
-  // Generate code from requirement
-  const handleGenerate = async () => {
+  // Analyze code from requirement
+  const handleAnalyze = async () => {
     if (!requirement.trim()) {
       message.warning('请输入代码需求描述')
       return
@@ -238,17 +238,13 @@ function Develop() {
 
     try {
       setGenerating(true)
-      const response = await llmApi.generate({
-        prompt: requirement,
-        context: selectedRepo
-          ? `Repository: ${selectedRepo}, Branch: ${selectedBranch || 'main'}`
-          : undefined,
-        provider: currentProvider,  // Send the current provider
+      const response = await llmApi.analyzeCode({
+        source_code: requirement,
       })
-      setGeneratedCode(response.code || response.content)
-      message.success('代码生成成功')
+      setGeneratedCode(response.code || response.analysis || "分析完成")
+      message.success('代码分析成功')
     } catch (error: any) {
-      message.error(error.message || '代码生成失败')
+      message.error(error.message || '代码分析失败')
     } finally {
       setGenerating(false)
     }
@@ -359,10 +355,10 @@ function Develop() {
 
       <Title level={2}>
         <CodeOutlined style={{ marginRight: 12 }} />
-        代码开发
+        代码分析
       </Title>
       <Paragraph style={{ fontSize: 16, color: '#666' }}>
-        输入您的代码需求，选择目标仓库和分支，AI将为您生成相应的代码。
+        输入您的代码，AI将为您分析代码结构、函数、类等。
       </Paragraph>
 
       {/* Usage Guide - 可折叠 */}
@@ -543,12 +539,12 @@ function Develop() {
             <Button
               type="primary"
               size="large"
-              icon={<SendOutlined />}
+              icon={<CodeOutlined />}
               loading={generating}
-              onClick={handleGenerate}
+              onClick={handleAnalyze}
               disabled={!requirement.trim()}
             >
-              生成代码
+              分析代码
             </Button>
           </Col>
         </Row>
@@ -560,7 +556,7 @@ function Develop() {
           title={
             <Space>
               <CodeOutlined />
-              <span>生成的代码</span>
+              <span>分析结果</span>
             </Space>
           }
           extra={
