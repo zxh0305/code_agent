@@ -15,6 +15,7 @@ import {
   Tag,
   Tooltip,
   Badge,
+  Collapse,
 } from 'antd'
 import {
   GithubOutlined,
@@ -29,9 +30,11 @@ import {
   RobotOutlined,
   DatabaseOutlined,
   DisconnectOutlined,
+  QuestionCircleOutlined,
 } from '@ant-design/icons'
 import { githubApi, llmApi, Repository, Branch, tokenManager } from '../services/api'
 import { settingsService } from '../services/settingsService'
+import UsageGuide from '../components/UsageGuide'
 
 const { Title, Text, Paragraph } = Typography
 const { TextArea } = Input
@@ -42,6 +45,7 @@ function Develop() {
   const [requirement, setRequirement] = useState('')
   const [generating, setGenerating] = useState(false)
   const [generatedCode, setGeneratedCode] = useState('')
+  const [showGuide, setShowGuide] = useState(true)
 
   // State for GitHub connection
   const [isConnected, setIsConnected] = useState(false)
@@ -328,6 +332,13 @@ function Develop() {
         输入您的代码需求，选择目标仓库和分支，AI将为您生成相应的代码。
       </Paragraph>
 
+      {/* Usage Guide - 可折叠 */}
+      {!isConnected && showGuide && (
+        <div style={{ marginBottom: 24 }}>
+          <UsageGuide />
+        </div>
+      )}
+
       {/* Code Requirement Input */}
       <Card
         title={
@@ -393,19 +404,17 @@ function Develop() {
                     filterOption={(input, option) =>
                       (option?.label as string)?.toLowerCase().includes(input.toLowerCase())
                     }
-                    options={repos.map((repo) => ({
-                      label: repo.full_name,
-                      value: repo.full_name,
-                      repo: repo
-                    }))}
-                    optionRender={(option) => (
-                      <Space>
-                        <GithubOutlined />
-                        {option.data.repo.full_name}
-                        {option.data.repo.is_private && <Tag color="orange">私有</Tag>}
-                      </Space>
-                    )}
-                  />
+                  >
+                    {repos.map((repo) => (
+                      <Option key={repo.full_name} value={repo.full_name} label={repo.full_name}>
+                        <Space>
+                          <GithubOutlined />
+                          {repo.full_name}
+                          {(repo.private || repo.is_private) && <Tag color="orange">私有</Tag>}
+                        </Space>
+                      </Option>
+                    ))}
+                  </Select>
                 </Space>
               </Col>
 
@@ -440,19 +449,17 @@ function Develop() {
                     filterOption={(input, option) =>
                       (option?.label as string)?.toLowerCase().includes(input.toLowerCase())
                     }
-                    options={branches.map((branch) => ({
-                      label: branch.name,
-                      value: branch.name,
-                      branch: branch
-                    }))}
-                    optionRender={(option) => (
-                      <Space>
-                        <BranchesOutlined />
-                        {option.data.branch.name}
-                        {option.data.branch.protected && <Tag color="red">受保护</Tag>}
-                      </Space>
-                    )}
-                  />
+                  >
+                    {branches.map((branch) => (
+                      <Option key={branch.name} value={branch.name} label={branch.name}>
+                        <Space>
+                          <BranchesOutlined />
+                          {branch.name}
+                          {branch.protected && <Tag color="red">受保护</Tag>}
+                        </Space>
+                      </Option>
+                    ))}
+                  </Select>
                 </Space>
               </Col>
             </Row>
@@ -480,7 +487,7 @@ function Develop() {
                       {selectedRepoInfo.language && (
                         <Tag color="blue">{selectedRepoInfo.language}</Tag>
                       )}
-                      <Tag>⭐ {selectedRepoInfo.stars_count}</Tag>
+                      <Tag>⭐ {selectedRepoInfo.stars_count || selectedRepoInfo.stargazers_count || 0}</Tag>
                       <Tooltip title="在GitHub中打开">
                         <Button
                           type="link"

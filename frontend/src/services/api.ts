@@ -157,9 +157,11 @@ export interface Repository {
   html_url: string
   clone_url: string
   default_branch: string
-  is_private: boolean
+  private: boolean  // 后端返回的是 private 不是 is_private
+  is_private?: boolean  // 兼容字段
   language: string | null
   stars_count: number
+  stargazers_count?: number  // 后端可能返回这个字段
   forks_count: number
 }
 
