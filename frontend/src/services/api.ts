@@ -4,6 +4,14 @@
 
 const API_BASE = '/api/v1'
 
+// Token management
+export const tokenManager = {
+  get: () => localStorage.getItem('github_access_token'),
+  set: (token: string) => localStorage.setItem('github_access_token', token),
+  remove: () => localStorage.removeItem('github_access_token'),
+  hasToken: () => !!localStorage.getItem('github_access_token')
+}
+
 // Generic fetch wrapper with error handling
 async function request<T>(url: string, options?: RequestInit): Promise<T> {
   const token = localStorage.getItem('token')
@@ -30,21 +38,45 @@ async function request<T>(url: string, options?: RequestInit): Promise<T> {
 // GitHub API
 export const githubApi = {
   // Get OAuth authorization URL
-  getAuthUrl: () => request<{ auth_url: string }>('/github/auth'),
+  getAuthUrl: () => request<{ auth_url: string; state: string }>('/github/auth'),
+
+  // Exchange code for token
+  exchangeToken: (code: string, state: string) =>
+    request<{ access_token: string; token_type: string; scope: string }>('/github/token', {
+      method: 'POST',
+      body: JSON.stringify({ code, state }),
+    }),
+
+  // Get user info
+  getUserInfo: () => {
+    const token = tokenManager.get()
+    if (!token) throw new Error('No GitHub token found')
+    return request<any>(`/github/user?access_token=${token}`)
+  },
 
   // Get user repositories
-  getRepos: () => request<Repository[]>('/github/repos'),
+  getRepos: () => {
+    const token = tokenManager.get()
+    if (!token) throw new Error('No GitHub token found')
+    return request<{ repositories: Repository[] }>(`/github/repos?access_token=${token}`)
+  },
 
   // Get repository branches
-  getBranches: (owner: string, repo: string) =>
-    request<Branch[]>(`/github/repos/${owner}/${repo}/branches`),
+  getBranches: (owner: string, repo: string) => {
+    const token = tokenManager.get()
+    if (!token) throw new Error('No GitHub token found')
+    return request<{ branches: Branch[] }>(`/github/repos/${owner}/${repo}/branches?access_token=${token}`)
+  },
 
   // Clone repository
-  cloneRepo: (data: { owner: string; repo: string; branch?: string }) =>
-    request<{ message: string; path: string }>('/github/repos/clone', {
+  cloneRepo: (data: { owner: string; repo: string; branch?: string }) => {
+    const token = tokenManager.get()
+    if (!token) throw new Error('No GitHub token found')
+    return request<{ message: string; path: string }>(`/github/repos/clone?access_token=${token}`, {
       method: 'POST',
       body: JSON.stringify(data),
-    }),
+    })
+  },
 }
 
 // Code Analysis API
