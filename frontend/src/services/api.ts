@@ -82,7 +82,7 @@ export const githubApi = {
 // Code Analysis API
 export const codeApi = {
   // Analyze code
-  analyze: (data: { code: string; language?: string }) =>
+  analyze: (data: { source_code: string; language?: string }) =>
     request<CodeAnalysisResult>('/code/analyze', {
       method: 'POST',
       body: JSON.stringify(data),
@@ -128,6 +128,13 @@ export const llmApi = {
   // Fix bugs
   fix: (data: { code: string; error_message?: string }) =>
     request<LLMResponse>('/llm/fix', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  // Analyze code (alias for codeApi.analyze)
+  analyzeCode: (data: { source_code: string; language?: string }) =>
+    request<CodeAnalysisResult>('/code/analyze', {
       method: 'POST',
       body: JSON.stringify(data),
     }),
