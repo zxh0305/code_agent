@@ -215,11 +215,20 @@ class LLMService:
         config = self.providers.get(provider, self.providers["openai"])
 
         if provider == "local":
+            if not config["base_url"]:
+                raise ValueError("LOCAL_LLM_URL is not configured. Please set LOCAL_LLM_URL in .env file or use a different provider.")
             return AsyncOpenAI(
                 base_url=config["base_url"],
-                api_key="not-needed",
-                timeout=120.0  # 2 minutes timeout
+                api_key="not-needed"
             )
+        
+        # Validate API key for non-local providers
+        if not config["api_key"] or config["api_key"] in ["your_openai_api_key", "your_api_key", ""]:
+            raise ValueError(
+                f"API key for provider '{provider}' is not configured. "
+                f"Please set {provider.upper()}_API_KEY in .env file with a valid API key."
+            )
+        
         return AsyncOpenAI(
             api_key=config["api_key"],
             base_url=config["base_url"],
