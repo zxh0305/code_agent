@@ -35,8 +35,9 @@ class Settings(BaseSettings):
     # GitHub OAuth Settings
     GITHUB_CLIENT_ID: str = ""
     GITHUB_CLIENT_secret: str = ""
-    GITHUB_REDIRECT_URI: str = "http://localhost:3002/github/callback"
+    GITHUB_REDIRECT_URI: str = "http://localhost:8082/api/v1/github/callback"
     GITHUB_SCOPES: str = "repo,user"
+    FRONTEND_URL: str = "http://localhost:3002"  # 前端地址，用于OAuth回调重定向
 
     # JWT Settings
     JWT_secret_KEY: str = "your-secret-key-change-in-production"

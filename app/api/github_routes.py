@@ -113,22 +113,23 @@ async def github_callback(
     """
     Handle GitHub OAuth callback.
 
-    Exchanges authorization code for access token.
+    Exchanges authorization code for access token and redirects to frontend.
     """
     try:
         token_data = await github_service.exchange_code_for_token(code, state)
-        # Return token data for frontend to handle
-        return {
-            "status": "success",
-            "access_token": token_data.get("access_token"),
-            "token_type": token_data.get("token_type", "bearer"),
-            "scope": token_data.get("scope", ""),
-            "message": "Authentication successful"
-        }
+        access_token = token_data.get("access_token")
+
+        # Redirect to frontend callback page with token
+        redirect_url = f"{settings.FRONTEND_URL}/github/callback?token={access_token}"
+
+        return RedirectResponse(url=redirect_url, status_code=302)
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        # On error, redirect to frontend with error message
+        error_url = f"{settings.FRONTEND_URL}/github/callback?error={str(e)}"
+        return RedirectResponse(url=error_url, status_code=302)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Authentication failed: {str(e)}")
+        error_url = f"{settings.FRONTEND_URL}/github/callback?error={str(e)}"
+        return RedirectResponse(url=error_url, status_code=302)
 
 
 @router.post("/token", response_model=TokenResponse)
