@@ -236,12 +236,36 @@ function Develop() {
       return
     }
 
+    if (!selectedRepo || !selectedBranch) {
+      message.warning('请先选择仓库和分支')
+      return
+    }
+
     try {
       setGenerating(true)
-      const response = await llmApi.analyzeCode({
-        source_code: requirement,
+      const [owner, repo] = selectedRepo.split('/')
+
+      const response = await githubApi.analyzeRepo({
+        requirements: requirement,
+        owner,
+        repo,
+        branch: selectedBranch,
+        provider: currentProvider,
       })
-      setGeneratedCode(response.code || response.analysis || "分析完成")
+
+      // 显示分析结果，包括统计信息
+      const statsInfo = `
+仓库: ${response.repository}
+分支: ${response.branch}
+分析文件数: ${response.files_analyzed} / ${response.total_files}
+使用模型: ${response.model || 'default'}
+${response.tokens ? `Token使用: ${response.tokens.total}` : ''}
+
+---
+
+` + response.analysis
+
+      setGeneratedCode(statsInfo)
       message.success('代码分析成功')
     } catch (error: any) {
       message.error(error.message || '代码分析失败')
@@ -358,7 +382,7 @@ function Develop() {
         代码分析
       </Title>
       <Paragraph style={{ fontSize: 16, color: '#666' }}>
-        输入您的代码，AI将为您分析代码结构、函数、类等。
+        选择要分析的 GitHub 仓库和分支，输入分析需求，AI 将对代码进行深度分析并提供专业建议。
       </Paragraph>
 
       {/* Usage Guide - 可折叠 */}
@@ -379,7 +403,7 @@ function Develop() {
         style={{ marginBottom: 24 }}
       >
         <TextArea
-          placeholder="请详细描述您的代码需求，例如：&#10;- 创建一个用户登录功能，包含邮箱和密码验证&#10;- 实现一个文件上传组件，支持拖拽上传&#10;- 编写一个API接口，获取用户列表并支持分页"
+          placeholder="请详细描述您的分析需求，例如：&#10;- 分析这个项目的整体架构设计&#10;- 检查代码中潜在的安全漏洞&#10;- 评估代码质量和可维护性&#10;- 提供性能优化建议"
           rows={6}
           value={requirement}
           onChange={(e) => setRequirement(e.target.value)}
@@ -542,7 +566,7 @@ function Develop() {
               icon={<CodeOutlined />}
               loading={generating}
               onClick={handleAnalyze}
-              disabled={!requirement.trim()}
+              disabled={!requirement.trim() || !selectedRepo || !selectedBranch}
             >
               分析代码
             </Button>

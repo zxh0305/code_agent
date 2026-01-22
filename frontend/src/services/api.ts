@@ -77,6 +77,31 @@ export const githubApi = {
       body: JSON.stringify(data),
     })
   },
+
+  // Analyze repository with LLM
+  analyzeRepo: (data: {
+    requirements: string
+    owner: string
+    repo: string
+    branch: string
+    provider?: string
+  }) => {
+    const token = tokenManager.get()
+    if (!token) throw new Error('No GitHub token found')
+    return request<{
+      status: string
+      repository: string
+      branch: string
+      files_analyzed: number
+      total_files: number
+      analysis: string
+      model?: string
+      tokens?: any
+    }>(`/github/repos/analyze?access_token=${token}`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    })
+  },
 }
 
 // Code Analysis API
