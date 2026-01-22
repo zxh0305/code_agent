@@ -381,8 +381,8 @@ npm run dev
 
 **环境变量配置**：
 ```env
-GITHUB_CLIENT_ID=Ov23liIezHdnsHGZ9FBR
-GITHUB_CLIENT_secret=d8cb14ab8b5a4bc23d7aa4b9fb48ffa949016090
+GITHUB_CLIENT_ID=YOUR_CLIENT_ID
+GITHUB_CLIENT_secret=YOUR_CLIENT_secret
 GITHUB_REDIRECT_URI=http://localhost:8082/api/v1/github/callback
 FRONTEND_URL=http://localhost:3002
 ```
