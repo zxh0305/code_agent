@@ -13,28 +13,56 @@ function GitHubCallback() {
   useEffect(() => {
     const handleCallback = async () => {
       try {
-        // 从 URL 中获取 code 和 state 参数
+        // 从 URL 中获取 token 或 code 和 state 参数
         const params = new URLSearchParams(location.search)
+        const token = params.get('token')
         const code = params.get('code')
         const state = params.get('state')
+        const error = params.get('error')
 
-        if (!code || !state) {
-          throw new Error('缺少授权参数')
+        // 如果有错误，直接显示错误
+        if (error) {
+          throw new Error(decodeURIComponent(error))
         }
 
-        // 交换 code 获取 access token
-        const response = await githubApi.exchangeToken(code, state)
+        // 如果直接有 token（来自后端重定向），直接存储
+        if (token) {
+          tokenManager.set(token)
+          setStatus('success')
+          setMessage('GitHub 授权成功！')
 
-        // 存储 token
-        tokenManager.set(response.access_token)
+          // 验证 token 有效性
+          try {
+            await githubApi.getUserInfo()
+          } catch (verifyError) {
+            console.warn('Token验证失败:', verifyError)
+            throw new Error('Token验证失败，请重新授权')
+          }
 
-        setStatus('success')
-        setMessage('GitHub 授权成功！')
+          setTimeout(() => {
+            navigate('/develop')
+          }, 1500)
+          return
+        }
 
-        // 3秒后跳转到开发页面
-        setTimeout(() => {
-          navigate('/develop')
-        }, 1500)
+        // 如果有 code 和 state，交换 token
+        if (code && state) {
+          const response = await githubApi.exchangeToken(code, state)
+
+          // 存储 token
+          tokenManager.set(response.access_token)
+
+          setStatus('success')
+          setMessage('GitHub 授权成功！')
+
+          // 3秒后跳转到开发页面
+          setTimeout(() => {
+            navigate('/develop')
+          }, 1500)
+          return
+        }
+
+        throw new Error('缺少授权参数')
       } catch (error: any) {
         console.error('GitHub OAuth error:', error)
         setStatus('error')
