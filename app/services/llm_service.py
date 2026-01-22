@@ -200,11 +200,13 @@ class LLMService:
         if provider == "local":
             return OpenAI(
                 base_url=config["base_url"],
-                api_key="not-needed"
+                api_key="not-needed",
+                timeout=120.0  # 2 minutes timeout
             )
         return OpenAI(
             api_key=config["api_key"],
-            base_url=config["base_url"]
+            base_url=config["base_url"],
+            timeout=120.0  # 2 minutes timeout
         )
 
     def _get_async_client(self, provider: Optional[str] = None) -> AsyncOpenAI:
@@ -215,11 +217,13 @@ class LLMService:
         if provider == "local":
             return AsyncOpenAI(
                 base_url=config["base_url"],
-                api_key="not-needed"
+                api_key="not-needed",
+                timeout=120.0  # 2 minutes timeout
             )
         return AsyncOpenAI(
             api_key=config["api_key"],
-            base_url=config["base_url"]
+            base_url=config["base_url"],
+            timeout=120.0  # 2 minutes timeout
         )
 
     def _get_model(self, provider: Optional[str] = None) -> str:

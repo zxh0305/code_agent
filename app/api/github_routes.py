@@ -4,6 +4,7 @@ Handles GitHub OAuth and repository operations.
 """
 
 import os
+import shutil
 import tempfile
 from typing import List, Optional
 
@@ -382,9 +383,10 @@ async def analyze_repository(
         if not files:
             raise HTTPException(status_code=400, detail="No Python files found in repository")
 
-        # Read content of main files (limit to first 10 files to avoid token overflow)
+        # Read content of main files (limit to first 5 files to avoid token overflow and timeout)
         code_context = ""
-        max_files = 10
+        max_files = 5  # Reduced from 10 to avoid timeout
+        max_file_size = 3000  # Reduced from 5000
         file_count = min(len(files), max_files)
 
         for i in range(file_count):
@@ -397,8 +399,8 @@ async def analyze_repository(
             if file_result["status"] == "success":
                 # Truncate large files
                 content = file_result["content"]
-                if len(content) > 5000:
-                    content = content[:5000] + "\n\n... (truncated)"
+                if len(content) > max_file_size:
+                    content = content[:max_file_size] + "\n\n... (truncated)"
 
                 code_context += f"\n{'='*60}\n"
                 code_context += f"File: {file_info['path']}\n"
@@ -450,7 +452,6 @@ async def analyze_repository(
         # Clean up temporary directory
         if temp_dir and os.path.exists(temp_dir):
             try:
-                import shutil
                 shutil.rmtree(temp_dir)
             except Exception as e:
                 print(f"Failed to cleanup temp directory: {e}")
