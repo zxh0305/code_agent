@@ -102,7 +102,13 @@ export const llmApi = {
   generate: (data: GenerateCodeRequest) =>
     request<LLMResponse>('/llm/generate', {
       method: 'POST',
-      body: JSON.stringify(data),
+      body: JSON.stringify({
+        prompt: data.prompt,
+        language: data.language,
+        context: data.context,
+        use_local_llm: data.use_local_llm,
+        provider: data.provider
+      }),
     }),
 
   // Modify code
