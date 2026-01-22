@@ -243,6 +243,7 @@ function Develop() {
         context: selectedRepo
           ? `Repository: ${selectedRepo}, Branch: ${selectedBranch || 'main'}`
           : undefined,
+        provider: currentProvider,  // Send the current provider
       })
       setGeneratedCode(response.code || response.content)
       message.success('代码生成成功')

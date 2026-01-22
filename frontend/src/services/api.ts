@@ -189,6 +189,7 @@ export interface GenerateCodeRequest {
   language?: string
   context?: string
   use_local_llm?: boolean
+  provider?: string  // Add provider field
 }
 
 export interface ModifyCodeRequest {
