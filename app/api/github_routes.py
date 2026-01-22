@@ -3,6 +3,8 @@ GitHub API routes.
 Handles GitHub OAuth and repository operations.
 """
 
+import os
+import tempfile
 from typing import List, Optional
 
 import httpx
@@ -12,6 +14,7 @@ from github import GithubException
 from pydantic import BaseModel
 
 from app.services.github_service import github_service
+from app.services.llm_service import llm_service
 from app.core.config import settings
 
 router = APIRouter(prefix="/github", tags=["GitHub"])
@@ -91,6 +94,15 @@ class FileWriteRequest(BaseModel):
     local_path: str
     file_path: str
     content: str
+
+
+class AnalyzeRepoRequest(BaseModel):
+    """Analyze repository request model."""
+    requirements: str
+    owner: str
+    repo: str
+    branch: str
+    provider: Optional[str] = None
 
 
 # Routes
@@ -328,3 +340,117 @@ async def list_files(
         extensions=ext_list
     )
     return {"status": "success", "files": files}
+
+
+@router.post("/repos/analyze")
+async def analyze_repository(
+    request: AnalyzeRepoRequest,
+    access_token: str = Query(...)
+):
+    """
+    Analyze a GitHub repository using LLM.
+
+    This endpoint:
+    1. Clones the repository temporarily
+    2. Reads main source files
+    3. Uses LLM to analyze the code based on requirements
+    4. Returns analysis results
+    """
+    temp_dir = None
+    try:
+        # Create temporary directory for cloning
+        temp_dir = tempfile.mkdtemp(prefix="code_analysis_")
+
+        # Clone repository
+        clone_url = f"https://github.com/{request.owner}/{request.repo}.git"
+        clone_result = github_service.clone_repository(
+            clone_url=clone_url,
+            local_path=temp_dir,
+            access_token=access_token,
+            branch=request.branch
+        )
+
+        if clone_result["status"] == "error":
+            raise HTTPException(status_code=400, detail=f"Failed to clone repository: {clone_result['message']}")
+
+        # List all Python files in the repository
+        files = github_service.list_files(
+            local_path=temp_dir,
+            extensions=[".py"]
+        )
+
+        if not files:
+            raise HTTPException(status_code=400, detail="No Python files found in repository")
+
+        # Read content of main files (limit to first 10 files to avoid token overflow)
+        code_context = ""
+        max_files = 10
+        file_count = min(len(files), max_files)
+
+        for i in range(file_count):
+            file_info = files[i]
+            file_result = github_service.get_file_content(
+                local_path=temp_dir,
+                file_path=file_info["path"]
+            )
+
+            if file_result["status"] == "success":
+                # Truncate large files
+                content = file_result["content"]
+                if len(content) > 5000:
+                    content = content[:5000] + "\n\n... (truncated)"
+
+                code_context += f"\n{'='*60}\n"
+                code_context += f"File: {file_info['path']}\n"
+                code_context += f"{'='*60}\n"
+                code_context += content + "\n"
+
+        # Use LLM to analyze the code
+        prompt = f"""分析以下 GitHub 仓库代码：
+
+仓库: {request.owner}/{request.repo}
+分支: {request.branch}
+
+用户需求:
+{request.requirements}
+
+代码内容:
+{code_context}
+
+请基于用户需求分析这段代码，包括：
+1. 代码结构概述
+2. 主要功能模块
+3. 代码质量和潜在问题
+4. 改进建议
+"""
+
+        result = await llm_service.chat(
+            messages=[{"role": "user", "content": prompt}],
+            system_prompt="你是一个资深的代码分析专家，能够深入分析代码结构、架构设计、代码质量，并提供专业的改进建议。",
+            provider=request.provider
+        )
+
+        if result["status"] == "error":
+            raise HTTPException(status_code=500, detail=f"LLM analysis failed: {result.get('message')}")
+
+        return {
+            "status": "success",
+            "repository": f"{request.owner}/{request.repo}",
+            "branch": request.branch,
+            "files_analyzed": file_count,
+            "total_files": len(files),
+            "analysis": result["response"],
+            "model": result.get("model"),
+            "tokens": result.get("tokens")
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
+    finally:
+        # Clean up temporary directory
+        if temp_dir and os.path.exists(temp_dir):
+            try:
+                import shutil
+                shutil.rmtree(temp_dir)
+            except Exception as e:
+                print(f"Failed to cleanup temp directory: {e}")
