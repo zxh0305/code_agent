@@ -40,6 +40,15 @@ const { Title, Text, Paragraph } = Typography
 const { TextArea } = Input
 const { Option } = Select
 
+// 提供商名称映射
+const providerNames: Record<string, string> = {
+  openai: 'OpenAI',
+  siliconflow: '硅基流动',
+  qwen: '千问',
+  zhipu: '智谱',
+  local: '本地LLM'
+}
+
 function Develop() {
   // State for requirement input
   const [requirement, setRequirement] = useState('')
@@ -59,7 +68,7 @@ function Develop() {
 
   // State for current settings
   const [currentModel, setCurrentModel] = useState<string>('gpt-4o')
-  const [currentProvider, setCurrentProvider] = useState<string>('OpenAI')
+  const [currentProvider, setCurrentProvider] = useState<string>('openai')
 
   // Check GitHub connection status
   const checkConnection = useCallback(async () => {
@@ -97,8 +106,31 @@ function Develop() {
   const loadCurrentSettings = async () => {
     try {
       const settings = await settingsService.getSettings()
-      setCurrentModel(settings.openai_model || 'gpt-4o')
-      setCurrentProvider(settings.default_llm_provider || 'OpenAI')
+      const provider = settings.default_llm_provider || 'openai'
+
+      // 设置当前提供商
+      setCurrentProvider(provider)
+
+      // 根据提供商设置对应的模型
+      switch (provider) {
+        case 'openai':
+          setCurrentModel(settings.openai_model || 'gpt-4o')
+          break
+        case 'siliconflow':
+          setCurrentModel(settings.siliconflow_model || 'deepseek-ai/DeepSeek-V3')
+          break
+        case 'qwen':
+          setCurrentModel(settings.qwen_model || 'qwen-plus')
+          break
+        case 'zhipu':
+          setCurrentModel(settings.zhipu_model || 'glm-4')
+          break
+        case 'local':
+          setCurrentModel(settings.local_llm_model || 'codellama')
+          break
+        default:
+          setCurrentModel('gpt-4o')
+      }
     } catch (error) {
       console.error('Failed to load settings:', error)
     }
@@ -245,7 +277,7 @@ function Develop() {
                 <div style={{ color: '#fff', fontSize: 14 }}>
                   <Text style={{ color: '#fff', fontSize: 12, opacity: 0.8 }}>AI模型:</Text>
                   <div style={{ fontSize: 16, fontWeight: 'bold', marginTop: 4 }}>
-                    {currentProvider} - {currentModel}
+                    {providerNames[currentProvider] || currentProvider} - {currentModel}
                   </div>
                 </div>
               </Badge>
