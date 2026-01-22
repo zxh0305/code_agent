@@ -5,8 +5,10 @@ Handles GitHub OAuth and repository operations.
 
 from typing import List, Optional
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import RedirectResponse
+from github import GithubException
 from pydantic import BaseModel
 
 from app.services.github_service import github_service
@@ -115,15 +117,18 @@ async def github_callback(
     """
     try:
         token_data = await github_service.exchange_code_for_token(code, state)
-        # In production, store token and redirect to frontend
+        # Return token data for frontend to handle
         return {
             "status": "success",
-            "token_type": token_data.get("token_type"),
-            "scope": token_data.get("scope"),
+            "access_token": token_data.get("access_token"),
+            "token_type": token_data.get("token_type", "bearer"),
+            "scope": token_data.get("scope", ""),
             "message": "Authentication successful"
         }
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Authentication failed: {str(e)}")
 
 
 @router.post("/token", response_model=TokenResponse)
@@ -153,8 +158,12 @@ async def get_user_info(access_token: str = Query(...)):
     try:
         user_info = await github_service.get_user_info(access_token)
         return {"status": "success", "user": user_info}
+    except httpx.HTTPStatusError as e:
+        if e.response.status_code == 401:
+            raise HTTPException(status_code=401, detail="Invalid or expired access token")
+        raise HTTPException(status_code=e.response.status_code, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=500, detail=f"Failed to get user info: {str(e)}")
 
 
 @router.get("/repos")
@@ -180,8 +189,10 @@ async def list_repositories(
             "page": page,
             "per_page": per_page
         }
+    except GithubException as e:
+        raise HTTPException(status_code=e.status, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=500, detail=f"Failed to list repositories: {str(e)}")
 
 
 @router.get("/repos/{owner}/{repo}")

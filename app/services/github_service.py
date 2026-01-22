@@ -5,6 +5,7 @@ Handles GitHub OAuth, repository operations, and API interactions.
 
 import os
 import shutil
+import logging
 from datetime import datetime
 from typing import Optional, Dict, Any, List
 from urllib.parse import urlencode
@@ -16,6 +17,8 @@ from git import Repo, GitCommandError
 from app.core.config import settings
 from app.core.redis import redis_client
 from app.core.security import generate_random_string
+
+logger = logging.getLogger(__name__)
 
 
 class GitHubService:
@@ -49,6 +52,8 @@ class GitHubService:
         # Store state in Redis for validation (30 minutes TTL)
         await redis_client.set(f"github_state:{state}", self.client_id, ttl=1800)
 
+        logger.info(f"Generated GitHub OAuth URL with state: {state}")
+
         return {
             "auth_url": auth_url,
             "state": state
@@ -72,30 +77,40 @@ class GitHubService:
         # Validate state
         stored_client_id = await redis_client.get(f"github_state:{state}")
         if not stored_client_id or stored_client_id != self.client_id:
+            logger.warning(f"Invalid state parameter: {state}")
             raise ValueError("Invalid state parameter")
 
         # Exchange code for token
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                "https://github.com/login/oauth/access_token",
-                headers={"Accept": "application/json"},
-                data={
-                    "client_id": self.client_id,
-                    "client_secret": self.client_secret,
-                    "code": code,
-                    "redirect_uri": self.redirect_uri
-                }
-            )
-            response.raise_for_status()
-            token_data = response.json()
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    "https://github.com/login/oauth/access_token",
+                    headers={"Accept": "application/json"},
+                    data={
+                        "client_id": self.client_id,
+                        "client_secret": self.client_secret,
+                        "code": code,
+                        "redirect_uri": self.redirect_uri
+                    },
+                    timeout=30.0
+                )
+                response.raise_for_status()
+                token_data = response.json()
 
-        if "error" in token_data:
-            raise ValueError(f"GitHub auth error: {token_data.get('error_description', token_data['error'])}")
+            if "error" in token_data:
+                error_msg = token_data.get('error_description', token_data['error'])
+                logger.error(f"GitHub auth error: {error_msg}")
+                raise ValueError(f"GitHub auth error: {error_msg}")
 
-        # Clean up state
-        await redis_client.delete(f"github_state:{state}")
+            # Clean up state
+            await redis_client.delete(f"github_state:{state}")
 
-        return token_data
+            logger.info("Successfully exchanged code for access token")
+
+            return token_data
+        except httpx.HTTPError as e:
+            logger.error(f"HTTP error during token exchange: {str(e)}")
+            raise ValueError(f"Failed to exchange code for token: {str(e)}")
 
     async def get_user_info(self, access_token: str) -> Dict[str, Any]:
         """
@@ -107,16 +122,23 @@ class GitHubService:
         Returns:
             User information from GitHub
         """
-        async with httpx.AsyncClient() as client:
-            response = await client.get(
-                "https://api.github.com/user",
-                headers={
-                    "Authorization": f"Bearer {access_token}",
-                    "Accept": "application/vnd.github.v3+json"
-                }
-            )
-            response.raise_for_status()
-            return response.json()
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.get(
+                    "https://api.github.com/user",
+                    headers={
+                        "Authorization": f"Bearer {access_token}",
+                        "Accept": "application/vnd.github.v3+json"
+                    },
+                    timeout=30.0
+                )
+                response.raise_for_status()
+                user_info = response.json()
+                logger.info(f"Retrieved user info for: {user_info.get('login', 'unknown')}")
+                return user_info
+        except httpx.HTTPError as e:
+            logger.error(f"Failed to get user info: {str(e)}")
+            raise
 
     async def list_user_repositories(
         self,
@@ -139,37 +161,43 @@ class GitHubService:
         Returns:
             List of repository information
         """
-        g = Github(access_token)
-        user = g.get_user()
+        try:
+            g = Github(access_token)
+            user = g.get_user()
 
-        repos = []
-        for repo in user.get_repos(sort=sort, direction=direction):
-            repos.append({
-                "id": repo.id,
-                "name": repo.name,
-                "full_name": repo.full_name,
-                "description": repo.description,
-                "html_url": repo.html_url,
-                "clone_url": repo.clone_url,
-                "ssh_url": repo.ssh_url,
-                "default_branch": repo.default_branch,
-                "private": repo.private,
-                "fork": repo.fork,
-                "archived": repo.archived,
-                "language": repo.language,
-                "stargazers_count": repo.stargazers_count,
-                "forks_count": repo.forks_count,
-                "watchers_count": repo.watchers_count,
-                "open_issues_count": repo.open_issues_count,
-                "created_at": repo.created_at.isoformat() if repo.created_at else None,
-                "updated_at": repo.updated_at.isoformat() if repo.updated_at else None
-            })
+            repos = []
+            for repo in user.get_repos(sort=sort, direction=direction):
+                repos.append({
+                    "id": repo.id,
+                    "name": repo.name,
+                    "full_name": repo.full_name,
+                    "description": repo.description,
+                    "html_url": repo.html_url,
+                    "clone_url": repo.clone_url,
+                    "ssh_url": repo.ssh_url,
+                    "default_branch": repo.default_branch,
+                    "private": repo.private,
+                    "fork": repo.fork,
+                    "archived": repo.archived,
+                    "language": repo.language,
+                    "stargazers_count": repo.stargazers_count,
+                    "forks_count": repo.forks_count,
+                    "watchers_count": repo.watchers_count,
+                    "open_issues_count": repo.open_issues_count,
+                    "created_at": repo.created_at.isoformat() if repo.created_at else None,
+                    "updated_at": repo.updated_at.isoformat() if repo.updated_at else None
+                })
 
-            if len(repos) >= per_page * page:
-                break
+                if len(repos) >= per_page * page:
+                    break
 
-        start_idx = (page - 1) * per_page
-        return repos[start_idx:start_idx + per_page]
+            start_idx = (page - 1) * per_page
+            result = repos[start_idx:start_idx + per_page]
+            logger.info(f"Retrieved {len(result)} repositories (page {page})")
+            return result
+        except GithubException as e:
+            logger.error(f"GitHub API error while listing repositories: {str(e)}")
+            raise
 
     async def get_repository(
         self,
